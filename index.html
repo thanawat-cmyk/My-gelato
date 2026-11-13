@@ -1,0 +1,2804 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gelato Bar POS - ระบบบริหารจัดการร้านไอศกรีมเจลาโต</title>
+  
+  <!-- Google Fonts: Prompt & Kanit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Vue 3 CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+  <!-- Phosphor Icons via CDN -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Prompt', 'Kanit', 'sans-serif'],
+            heading: ['Kanit', 'sans-serif'],
+          },
+          colors: {
+            cream: {
+              50: '#FDFBF7',
+              100: '#F7F3EB',
+              200: '#EFE8DA',
+              300: '#DFD4BF',
+            },
+            pistachio: {
+              100: '#E8F1EC',
+              500: '#5A8A6F',
+              600: '#46725A',
+              700: '#345744',
+            },
+            berry: {
+              100: '#FCE7EB',
+              500: '#E05A74',
+              600: '#C73E58',
+            },
+            choco: {
+              800: '#3A2E2B',
+              900: '#261C19',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #F7F3EB;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #DFD4BF;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #5A8A6F;
+    }
+    .print-only {
+      display: none;
+    }
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #receipt-print-area, #receipt-print-area * {
+        visibility: visible;
+      }
+      #receipt-print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-cream-100 text-choco-900 font-sans antialiased h-screen overflow-hidden select-none">
+<div id="app" class="flex flex-col h-full">
+
+  <!-- ================= LOGIN SCREEN (IF NOT LOGGED IN) ================= -->
+  <div v-if="!isLoggedIn" class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-cream-100 via-cream-50 to-pistachio-100/60 p-4">
+    <div class="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl border border-cream-200 flex flex-col items-center text-center">
+      
+      <!-- Brand Icon & Title -->
+      <div class="w-16 h-16 rounded-3xl bg-pistachio-500 text-white flex items-center justify-center text-3xl shadow-lg mb-3">
+        🍦
+      </div>
+      <h2 class="text-2xl font-heading font-bold text-choco-900 tracking-tight">GELATO BAR POS</h2>
+      <p class="text-xs text-gray-500 mt-1 mb-5">ระบบบริหารจัดการร้านไอศกรีมเจลาโต (เข้าสู่ระบบตามสิทธิ์)</p>
+
+      <!-- Role-based Instruction Banner -->
+      <div class="w-full bg-cream-50 rounded-2xl p-3.5 border border-cream-200 text-left mb-5 space-y-1.5">
+        <div class="flex items-start text-[11px] text-amber-900">
+          <span class="w-2 h-2 rounded-full bg-amber-500 mr-2 mt-1 shrink-0"></span>
+          <span><strong>Manager (@manager):</strong> สิทธิ์ครบ 5 ฟังก์ชัน (การขาย, ดูคำสั่งซื้อ, คลังสต็อก, ผู้จัดการ, จัดการบัญชี)</span>
+        </div>
+        <div class="flex items-start text-[11px] text-pistachio-900">
+          <span class="w-2 h-2 rounded-full bg-pistachio-600 mr-2 mt-1 shrink-0"></span>
+          <span><strong>Staff (@staff):</strong> สิทธิ์หน้าร้าน 3 ฟังก์ชัน (การขาย, ดูคำสั่งซื้อ, คลังสต็อก)</span>
+        </div>
+      </div>
+
+      <!-- Login Form -->
+      <form @submit.prevent="handleLogin" class="w-full space-y-3.5 text-left text-xs">
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">ชื่อผู้ใช้ (Username) *</label>
+          <div class="relative">
+            <input type="text" v-model="loginUsername" 
+                   placeholder="เช่น somchai@manager หรือ mint@staff"
+                   class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-pistachio-500">
+          </div>
+          <p class="text-[10px] text-gray-400 mt-1">* ระบุ @staff สำหรับพนักงาน หรือ @manager สำหรับผู้จัดการ</p>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">รหัสผ่าน (Password) *</label>
+          <input type="password" v-model="loginPassword" placeholder="••••••••"
+                 class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-pistachio-500">
+        </div>
+
+        <div v-if="loginError" class="p-2.5 bg-berry-50 border border-berry-200 rounded-xl text-berry-600 text-xs flex items-center space-x-1.5">
+          <i class="ph ph-warning-circle text-base shrink-0"></i>
+          <span>{{ loginError }}</span>
+        </div>
+
+        <button type="submit" 
+                class="w-full py-3 rounded-xl bg-choco-900 hover:bg-choco-800 text-white font-bold text-sm shadow-md transition flex items-center justify-center space-x-1.5 mt-2">
+          <i class="ph ph-sign-in text-base"></i>
+          <span>เข้าสู่ระบบ (Sign In)</span>
+        </button>
+      </form>
+
+      <!-- Quick Demo Login Buttons -->
+      <div class="w-full pt-4 mt-5 border-t border-cream-200">
+        <p class="text-[11px] text-gray-400 mb-2">⚡ ปุ่มลัดสำหรับเดโม (คลิกเดียวเข้าได้ทันที):</p>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" @click="quickLogin('somchai@manager')" 
+                  class="p-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold transition flex items-center justify-center space-x-1">
+            <span>👑 somchai@manager</span>
+          </button>
+          <button type="button" @click="quickLogin('mint@staff')" 
+                  class="p-2 rounded-xl border border-pistachio-300 bg-pistachio-50 hover:bg-pistachio-100 text-pistachio-900 text-[11px] font-bold transition flex items-center justify-center space-x-1">
+            <span>👤 mint@staff</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MAIN POS INTERFACE (WHEN LOGGED IN) ================= -->
+  <div v-else class="flex flex-col h-full">
+
+  <!-- ================= TOP NAVIGATION BAR ================= -->
+  <header class="bg-white border-b border-cream-300 px-5 py-2.5 flex items-center justify-between shadow-sm z-30">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 rounded-2xl bg-pistachio-500 text-white flex items-center justify-center text-2xl shadow-md">
+        🍦
+      </div>
+      <div>
+        <h1 class="text-xl font-heading font-bold tracking-tight text-choco-900 leading-none">
+          GELATO BAR <span class="text-pistachio-600 font-normal text-sm ml-1">POS & ERP</span>
+        </h1>
+        <p class="text-xs text-gray-400 mt-0.5">ระบบเคาน์เตอร์บริหารร้านเจลาโตอิตาเลียน</p>
+      </div>
+
+      <!-- Branch Selector (Req 18) -->
+      <div class="ml-6 pl-6 border-l border-cream-300 flex items-center space-x-2">
+        <i class="ph ph-storefront text-pistachio-600 text-lg"></i>
+        <span class="text-xs text-gray-500 font-medium">สาขา:</span>
+        <select v-model="currentBranchId" @change="onBranchChange" class="bg-cream-50 border border-cream-300 text-xs font-semibold rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-pistachio-500">
+          <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Center Mode Switcher Tabs -->
+    <div class="flex bg-cream-200/70 p-1 rounded-xl space-x-1">
+      <button @click="currentView = 'pos'" 
+              :class="currentView === 'pos' ? 'bg-white text-pistachio-700 shadow-sm font-semibold' : 'text-gray-600 hover:text-gray-900'"
+              class="px-3.5 py-1.5 rounded-lg text-sm transition flex items-center space-x-1.5">
+        <i class="ph ph-cash-register text-base"></i>
+        <span>1. จุดขาย POS</span>
+      </button>
+
+      <button @click="currentView = 'orders'" 
+              :class="currentView === 'orders' ? 'bg-white text-pistachio-700 shadow-sm font-semibold' : 'text-gray-600 hover:text-gray-900'"
+              class="px-3.5 py-1.5 rounded-lg text-sm transition flex items-center space-x-1.5">
+        <i class="ph ph-receipt text-base"></i>
+        <span>2. คำสั่งซื้อ ({{ orders.length }})</span>
+      </button>
+
+      <button @click="currentView = 'inventory'" 
+              :class="currentView === 'inventory' ? 'bg-white text-pistachio-700 shadow-sm font-semibold' : 'text-gray-600 hover:text-gray-900'"
+              class="px-3.5 py-1.5 rounded-lg text-sm transition flex items-center space-x-1.5 relative">
+        <i class="ph ph-package text-base"></i>
+        <span>3. คลังสต็อก</span>
+        <span v-if="lowStockItems.length > 0" class="w-2.5 h-2.5 bg-berry-500 rounded-full animate-ping absolute -top-0.5 -right-0.5"></span>
+        <span v-if="lowStockItems.length > 0" class="w-2 h-2 bg-berry-500 rounded-full absolute -top-0.5 -right-0.5"></span>
+      </button>
+
+      <!-- TAB 4: MANAGER (Visible only for Manager @manager) -->
+      <button v-if="isManager" @click="currentView = 'manager'" 
+              :class="currentView === 'manager' ? 'bg-white text-pistachio-700 shadow-sm font-semibold' : 'text-gray-600 hover:text-gray-900'"
+              class="px-3.5 py-1.5 rounded-lg text-sm transition flex items-center space-x-1.5">
+        <i class="ph ph-chart-line-up text-base"></i>
+        <span>4. ผู้จัดการ</span>
+      </button>
+
+      <!-- TAB 5: ACCOUNT MANAGEMENT (Visible only for Manager @manager) -->
+      <button v-if="isManager" @click="currentView = 'users'" 
+              :class="currentView === 'users' ? 'bg-white text-pistachio-700 shadow-sm font-semibold' : 'text-gray-600 hover:text-gray-900'"
+              class="px-3.5 py-1.5 rounded-lg text-sm transition flex items-center space-x-1.5">
+        <i class="ph ph-users text-base"></i>
+        <span>5. จัดการบัญชีผู้ใช้</span>
+      </button>
+    </div>
+
+    <!-- Right Profile & Stock Alert Indicator -->
+    <div class="flex items-center space-x-3">
+      <!-- Low Stock Bell Alert Button (Req 14) -->
+      <button @click="openLowStockAlertModal" 
+              class="relative p-2 rounded-xl transition"
+              :class="lowStockItems.length > 0 ? 'bg-berry-100 text-berry-600 hover:bg-berry-200' : 'bg-cream-100 text-gray-500'">
+        <i class="ph ph-bell text-xl"></i>
+        <span v-if="lowStockItems.length > 0" class="absolute -top-1 -right-1 bg-berry-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+          {{ lowStockItems.length }}
+        </span>
+      </button>
+
+      <!-- Staff / Manager Indicator -->
+      <div class="flex items-center space-x-2 bg-cream-50 px-3 py-1.5 rounded-xl border border-cream-200">
+        <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+             :class="isManager ? 'bg-amber-100 text-amber-800' : 'bg-pistachio-100 text-pistachio-700'">
+          {{ isManager ? '👑' : '👤' }}
+        </div>
+        <div class="text-left text-xs">
+          <p class="font-semibold text-choco-900 leading-tight">{{ activeUser ? activeUser.name : 'ผู้ใช้งาน' }}</p>
+          <p class="text-[10px] text-gray-400 font-mono">{{ activeUser ? activeUser.username : '' }}</p>
+        </div>
+      </div>
+
+      <!-- Logout Button (ออกจากระบบ) -->
+      <button @click="logout" 
+              class="px-2.5 py-1.5 rounded-xl bg-berry-50 hover:bg-berry-100 text-berry-600 text-xs font-semibold flex items-center space-x-1 transition border border-berry-200" 
+              title="ออกจากระบบเพื่อสลับบทบาท">
+        <i class="ph ph-sign-out text-base"></i>
+        <span>ออกจากระบบ</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= MAIN BODY CONTAINER ================= -->
+  <main class="flex-1 flex overflow-hidden">
+
+    <!-- ======================================================== -->
+    <!-- VIEW 1: POS COUNTER TERMINAL (Req 3, 4, 6, 7, 8, 9, 11)   -->
+    <!-- ======================================================== -->
+    <div v-if="currentView === 'pos'" class="flex-1 flex h-full overflow-hidden">
+      
+      <!-- LEFT SECTION: Menu Categories & Flavors Grid (65%) -->
+      <div class="w-8/12 flex flex-col h-full bg-cream-50 border-r border-cream-300 p-4 overflow-hidden">
+        
+        <!-- Category & Search Bar -->
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex space-x-2">
+            <button v-for="cat in categories" :key="cat.id"
+                    @click="selectedCategory = cat.id"
+                    :class="selectedCategory === cat.id ? 'bg-choco-900 text-white shadow-sm' : 'bg-white text-gray-600 hover:bg-cream-200'"
+                    class="px-3.5 py-1.5 rounded-xl text-xs font-medium transition flex items-center space-x-1.5">
+              <span>{{ cat.icon }}</span>
+              <span>{{ cat.name }}</span>
+            </button>
+          </div>
+          <!-- Button Add New Menu Directly from POS -->
+          <button @click="showAddProductModal = true" class="bg-pistachio-600 hover:bg-pistachio-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm transition flex items-center space-x-1.5">
+            <i class="ph ph-plus-circle text-base"></i>
+            <span>+ เพิ่มเมนูรสชาติใหม่</span>
+          </button>
+        </div>
+
+        <!-- Gelato Flavor & Product Cards Grid -->
+        <div class="flex-1 overflow-y-auto pr-1 grid grid-cols-3 gap-3">
+          <div v-for="item in filteredProducts" :key="item.id"
+               @click="openCustomizationModal(item)"
+               class="bg-white rounded-2xl p-3 border border-cream-200 shadow-sm hover:shadow-md hover:border-pistachio-500 transition cursor-pointer flex flex-col justify-between group relative">
+            
+            <!-- Flavor Stock Status Badge (Req 13, 14) -->
+            <div class="flex items-start justify-between">
+              <span class="text-3xl p-2 rounded-xl bg-cream-100 group-hover:scale-110 transition">{{ item.icon }}</span>
+              <div>
+                <span v-if="getStock(item.flavorCode) <= 0" class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-gray-200 text-gray-600">
+                  หมด (Out)
+                </span>
+                <span v-else-if="getStock(item.flavorCode) <= item.lowThreshold" class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 animate-pulse">
+                  ⚠️ เหลือ {{ getStock(item.flavorCode) }} สกู๊ป
+                </span>
+                <span v-else class="text-[10px] font-medium px-2 py-0.5 rounded-md bg-pistachio-100 text-pistachio-700">
+                  มี {{ getStock(item.flavorCode) }} สกู๊ป
+                </span>
+              </div>
+            </div>
+
+            <div class="mt-2.5">
+              <h3 class="font-heading font-bold text-base md:text-lg text-choco-900 leading-snug tracking-tight">{{ item.name }}</h3>
+              <p class="text-xs text-gray-500 line-clamp-1 mt-1">{{ item.desc }}</p>
+            </div>
+
+            <div class="mt-3 pt-2.5 border-t border-cream-100 flex items-center justify-between">
+              <span class="text-lg font-extrabold text-pistachio-600">฿{{ item.price }}</span>
+              <div class="flex items-center space-x-1.5">
+                <button @click.stop="openEditProductModal(item)" class="w-8 h-8 rounded-xl bg-cream-100 hover:bg-amber-100 text-gray-400 hover:text-amber-600 flex items-center justify-center transition shadow-xs" title="แก้ไขข้อมูลเมนูนี้">
+                  <i class="ph ph-pencil-simple text-base"></i>
+                </button>
+                <button @click.stop="deleteProduct(item)" class="w-8 h-8 rounded-xl bg-cream-100 hover:bg-berry-100 text-gray-400 hover:text-berry-600 flex items-center justify-center transition shadow-xs" title="ลบเมนูสินค้านี้">
+                  <i class="ph ph-trash text-base"></i>
+                </button>
+                <button class="w-8 h-8 rounded-xl bg-cream-100 text-choco-900 group-hover:bg-pistachio-500 group-hover:text-white flex items-center justify-center transition shadow-xs" title="เลือกสั่งซื้อ">
+                  <i class="ph ph-plus font-bold text-base"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Tips Footbar -->
+        <div class="mt-2 pt-2 border-t border-cream-200 flex items-center justify-between text-[11px] text-gray-400">
+          <span>💡 สามารถเลือกรสชาติ ภาชนะ (ถ้วย/โคน) และท็อปปิ้งในหน้าต่างปรับแต่ง</span>
+          <span>สต็อกจะตัดอัตโนมัติเมื่อกดชำระเงิน</span>
+        </div>
+      </div>
+
+      <!-- RIGHT SECTION: Cart, Customer/Member & Checkout Panel (35%) -->
+      <div class="w-4/12 flex flex-col h-full bg-white p-4 shadow-lg overflow-hidden">
+        
+        <!-- Member Search / Fast Registration Bar (Req 1) -->
+        <div class="bg-cream-100 p-3 rounded-2xl mb-3 border border-cream-200">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-semibold text-choco-900 flex items-center">
+              <i class="ph ph-user-circle mr-1 text-pistachio-600 text-base"></i>
+              สมาชิกลูกค้า (Membership)
+            </span>
+            <button v-if="!currentCustomer" @click="showMemberModal = true" class="text-[11px] text-pistachio-600 hover:text-pistachio-700 font-bold underline flex items-center">
+              <i class="ph ph-user-plus mr-0.5"></i> สมัครสมาชิกใหม่
+            </button>
+            <button v-else @click="currentCustomer = null" class="text-[11px] text-berry-600 hover:underline">
+              ยกเลิกผูกสมาชิก
+            </button>
+          </div>
+
+          <!-- Phone lookup input -->
+          <div v-if="!currentCustomer" class="flex space-x-1.5">
+            <input type="text" v-model="memberPhoneSearch" @keyup.enter="searchMember"
+                   placeholder="พิมพ์เบอร์โทร (เช่น 0812345678)" 
+                   class="flex-1 bg-white border border-cream-300 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-pistachio-500">
+            <button @click="searchMember" class="bg-choco-900 text-white text-xs px-3 py-1.5 rounded-xl hover:bg-choco-800 transition">
+              ค้นหา
+            </button>
+          </div>
+
+          <!-- Active Customer Info Display -->
+          <div v-else class="bg-pistachio-100 border border-pistachio-500/30 rounded-xl p-2 flex items-center justify-between">
+            <div>
+              <p class="text-xs font-bold text-pistachio-800">{{ currentCustomer.name }}</p>
+              <p class="text-[10px] text-pistachio-700">เบอร์: {{ currentCustomer.phone }}</p>
+            </div>
+            <span class="text-[10px] font-bold bg-pistachio-600 text-white px-2 py-0.5 rounded-md">
+              รับสิทธิ์ส่วนลด 10%
+            </span>
+          </div>
+        </div>
+
+        <!-- Cart Items List (Req 6) -->
+        <div class="flex-1 overflow-y-auto pr-1 space-y-2">
+          <div v-if="cart.length === 0" class="h-full flex flex-col items-center justify-center text-gray-400">
+            <i class="ph ph-shopping-bag-open text-4xl mb-2 text-cream-300"></i>
+            <p class="text-xs">ยังไม่มีสินค้าในบิล</p>
+            <p class="text-[11px] text-gray-300">เลือกรสชาติเจลาโต้ทางซ้ายเพื่อเริ่มต้น</p>
+          </div>
+
+          <div v-for="(item, idx) in cart" :key="idx" 
+               class="p-2.5 rounded-xl bg-cream-50 border border-cream-200 flex flex-col space-y-1">
+            <div class="flex items-start justify-between">
+              <div>
+                <h4 class="text-sm font-bold text-choco-900 leading-snug">{{ item.productName }}</h4>
+                <p class="text-[11px] text-gray-500 mt-0.5">
+                  {{ item.servingType }} 
+                  <span v-if="item.toppings.length > 0"> • ท็อปปิ้ง: {{ item.toppings.join(', ') }}</span>
+                </p>
+              </div>
+              <div class="text-right">
+                <span class="text-sm font-extrabold text-choco-900">฿{{ item.totalPrice }}</span>
+              </div>
+            </div>
+
+            <!-- Quantity & Remove button -->
+            <div class="flex items-center justify-between pt-1 border-t border-cream-200/60 text-xs">
+              <div class="flex items-center space-x-2">
+                <button @click="decreaseCartQty(idx)" class="w-5 h-5 rounded bg-white border border-cream-300 flex items-center justify-center hover:bg-cream-200 text-gray-600 text-[10px]">
+                  -
+                </button>
+                <span class="font-bold text-xs">{{ item.qty }}</span>
+                <button @click="increaseCartQty(idx)" class="w-5 h-5 rounded bg-white border border-cream-300 flex items-center justify-center hover:bg-cream-200 text-gray-600 text-[10px]">
+                  +
+                </button>
+              </div>
+              <button @click="removeCartItem(idx)" class="text-[10px] text-berry-500 hover:text-berry-700">
+                <i class="ph ph-trash"></i> ลบ
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Promotion Selector Dropdown (Req 7, 15) -->
+        <div class="mt-2.5 bg-cream-50 p-2.5 rounded-xl border border-cream-200">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-[11px] font-bold text-choco-900 flex items-center">
+              <i class="ph ph-tag text-pistachio-600 mr-1 text-sm"></i>
+              เลือกโปรโมชั่นในบิล:
+            </span>
+            <span v-if="selectedPromo" class="text-[10px] font-bold text-pistachio-700 bg-pistachio-100 px-1.5 py-0.5 rounded">
+              {{ selectedPromo.discountText }}
+            </span>
+          </div>
+          <select v-model="selectedPromoId" class="w-full bg-white border border-cream-300 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-pistachio-500 font-medium text-choco-900">
+            <option :value="null">-- ไม่ใช้โปรโมชั่น / No Promotion --</option>
+            <option v-for="p in promotions" :key="p.id" :value="p.id">
+              {{ p.code }} : {{ p.name }} ({{ p.discountText }})
+            </option>
+          </select>
+        </div>
+
+        <!-- Calculation & Discount Summary (Req 4, 7) -->
+        <div class="mt-2 pt-2 border-t border-cream-300 space-y-1.5 text-xs">
+          <div class="flex justify-between text-gray-500">
+            <span>ราคารวมสินค้า (Subtotal)</span>
+            <span>฿{{ cartSubtotal }}</span>
+          </div>
+
+          <!-- Active Promotion Discount (Req 7, 15) -->
+          <div v-if="activePromotionDiscount > 0" class="flex justify-between text-pistachio-600 font-medium">
+            <span>ส่วนลดโปรโมชั่น ({{ appliedPromoName }})</span>
+            <span>-฿{{ activePromotionDiscount }}</span>
+          </div>
+
+          <!-- Member Discount (Req 7) -->
+          <div v-if="memberDiscount > 0" class="flex justify-between text-pistachio-600 font-medium">
+            <span>ส่วนลดสมาชิก (10%)</span>
+            <span>-฿{{ memberDiscount }}</span>
+          </div>
+
+          <!-- Net Total -->
+          <div class="flex justify-between items-baseline pt-2 border-t border-cream-200">
+            <span class="text-sm font-bold text-choco-900">ยอดชำระสุทธิ:</span>
+            <span class="text-2xl font-extrabold text-pistachio-600">฿{{ cartNetTotal }}</span>
+          </div>
+        </div>
+
+        <!-- Action / Checkout Buttons (Req 2, 8, 9 & Credit Card) -->
+        <div class="mt-3 pt-2 space-y-2">
+          <!-- Cancel Cart (Req 2) -->
+          <button @click="clearCart" :disabled="cart.length === 0" 
+                  class="w-full py-1.5 rounded-xl border border-berry-500/30 text-berry-600 hover:bg-berry-100 text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center space-x-1">
+            <i class="ph ph-x-circle text-sm"></i>
+            <span>ยกเลิก/ล้างบิลนี้</span>
+          </button>
+
+          <!-- 3 Payment Option Buttons Grid -->
+          <div class="grid grid-cols-3 gap-1.5">
+            <!-- Cash Payment (Req 9) -->
+            <button @click="openCashPaymentModal" :disabled="cart.length === 0"
+                    class="py-2.5 px-1 rounded-xl bg-choco-900 hover:bg-choco-800 text-white font-bold text-xs transition flex flex-col items-center justify-center space-y-1 shadow-md disabled:opacity-40 disabled:cursor-not-allowed">
+              <i class="ph ph-money text-lg"></i>
+              <span>เงินสด</span>
+            </button>
+
+            <!-- Digital / QR Payment (Req 8) -->
+            <button @click="openDigitalPaymentModal" :disabled="cart.length === 0"
+                    class="py-2.5 px-1 rounded-xl bg-pistachio-600 hover:bg-pistachio-700 text-white font-bold text-xs transition flex flex-col items-center justify-center space-y-1 shadow-md disabled:opacity-40 disabled:cursor-not-allowed">
+              <i class="ph ph-qr-code text-lg"></i>
+              <span>QR โอน</span>
+            </button>
+
+            <!-- Credit Card Payment -->
+            <button @click="openCreditCardModal" :disabled="cart.length === 0"
+                    class="py-2.5 px-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition flex flex-col items-center justify-center space-y-1 shadow-md disabled:opacity-40 disabled:cursor-not-allowed">
+              <i class="ph ph-credit-card text-lg"></i>
+              <span>บัตรเครดิต</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- VIEW 2: ORDER HISTORY & AUDIT (Req 2, 5, 17)             -->
+    <!-- ======================================================== -->
+    <div v-if="currentView === 'orders'" class="flex-1 flex flex-col bg-cream-50 p-6 overflow-hidden">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-xl font-heading font-bold text-choco-900">รายการคำสั่งซื้อทั้งหมด</h2>
+          <p class="text-xs text-gray-500">พนักงานสามารถตรวจสอบประวัติการขาย และยกเลิกคำสั่งซื้อได้ที่นี่</p>
+        </div>
+        <div class="flex space-x-3 text-xs">
+          <span class="bg-white px-3 py-1.5 rounded-xl border border-cream-200">
+            ยอดขายวันนี้: <strong class="text-pistachio-600 font-bold">฿{{ todayTotalSales }}</strong>
+          </span>
+          <span class="bg-white px-3 py-1.5 rounded-xl border border-cream-200">
+            จำนวนบิล: <strong class="text-choco-900 font-bold">{{ orders.length }} บิล</strong>
+          </span>
+        </div>
+      </div>
+
+      <!-- Orders Table -->
+      <div class="flex-1 bg-white rounded-2xl border border-cream-200 shadow-sm overflow-hidden flex flex-col">
+        <div class="overflow-y-auto flex-1">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-cream-100 text-choco-900 font-semibold sticky top-0 border-b border-cream-200">
+              <tr>
+                <th class="py-3 px-4">เลขที่บิล</th>
+                <th class="py-3 px-4">เวลา</th>
+                <th class="py-3 px-4">สาขา</th>
+                <th class="py-3 px-4">ลูกค้า/สมาชิก</th>
+                <th class="py-3 px-4">รายการสินค้า</th>
+                <th class="py-3 px-4">วิธีชำระ</th>
+                <th class="py-3 px-4 text-right">ยอดรวม</th>
+                <th class="py-3 px-4 text-center">สถานะ</th>
+                <th class="py-3 px-4 text-center">การจัดการ</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-cream-100">
+              <tr v-for="order in orders" :key="order.id" class="hover:bg-cream-50/60 transition">
+                <td class="py-3 px-4 font-bold text-choco-900">{{ order.orderNumber }}</td>
+                <td class="py-3 px-4 text-gray-500">{{ order.time }}</td>
+                <td class="py-3 px-4">{{ order.branchName }}</td>
+                <td class="py-3 px-4">
+                  <span v-if="order.customerName" class="font-medium text-pistachio-700">
+                    {{ order.customerName }} ({{ order.customerPhone }})
+                  </span>
+                  <span v-else class="text-gray-400">ลูกค้าทั่วไป</span>
+                </td>
+                <td class="py-3 px-4 max-w-xs truncate text-gray-600">
+                  {{ order.itemsSummary }}
+                </td>
+                <td class="py-3 px-4">
+                  <span :class="order.paymentMethod === 'Cash' ? 'bg-amber-100 text-amber-800' : order.paymentMethod === 'CreditCard' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'" class="px-2 py-0.5 rounded-md text-[10px] font-bold">
+                    {{ order.paymentMethod === 'Cash' ? 'เงินสด' : order.paymentMethod === 'CreditCard' ? 'บัตรเครดิต' : 'ดิจิทัล QR' }}
+                  </span>
+                </td>
+                <td class="py-3 px-4 text-right font-bold text-choco-900">฿{{ order.netTotal }}</td>
+                <td class="py-3 px-4 text-center">
+                  <span v-if="order.status === 'Completed'" class="bg-pistachio-100 text-pistachio-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    ชำระแล้ว
+                  </span>
+                  <span v-else class="bg-berry-100 text-berry-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    ยกเลิกแล้ว
+                  </span>
+                </td>
+                <td class="py-3 px-4 text-center space-x-1.5">
+                  <button @click="viewOrderReceipt(order)" class="px-2 py-1 rounded bg-cream-100 hover:bg-cream-200 text-choco-900 text-[11px]">
+                    <i class="ph ph-receipt"></i> ดูใบเสร็จ
+                  </button>
+                  <!-- Cancel Order (Req 2) -->
+                  <button v-if="order.status === 'Completed'" 
+                          @click="cancelOrder(order)" 
+                          class="px-2 py-1 rounded bg-berry-100 hover:bg-berry-200 text-berry-600 text-[11px] font-medium">
+                    <i class="ph ph-x"></i> ยกเลิกบิล
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="orders.length === 0">
+                <td colspan="9" class="text-center py-10 text-gray-400">ยังไม่มีรายการคำสั่งซื้อในระบบ</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- VIEW 3: INVENTORY & LOW STOCK ALERTS (Req 10, 11, 13, 14) -->
+    <!-- ======================================================== -->
+    <div v-if="currentView === 'inventory'" class="flex-1 flex flex-col bg-cream-50 p-6 overflow-hidden">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-xl font-heading font-bold text-choco-900">ระบบคลังวัตถุดิบและสต็อกสินค้า</h2>
+          <p class="text-xs text-gray-500">ติดตามวัตถุดิบคงเหลือ แจ้งเตือนของใกล้หมด และบันทึกการเพิ่มสต็อกแยกสาขา</p>
+        </div>
+        <div class="flex space-x-2">
+          <button @click="showAddStockModal = true" class="bg-pistachio-600 hover:bg-pistachio-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center space-x-1 shadow-sm transition">
+            <i class="ph ph-plus-circle text-base"></i>
+            <span>+ บันทึกเพิ่มสต็อก (Restock)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Inventory Table -->
+      <div class="flex-1 bg-white rounded-2xl border border-cream-200 shadow-sm overflow-hidden flex flex-col">
+        <div class="overflow-y-auto flex-1">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-cream-100 text-choco-900 font-semibold sticky top-0 border-b border-cream-200">
+              <tr>
+                <th class="py-3 px-4">รหัสวัตถุดิบ</th>
+                <th class="py-3 px-4">ชื่อวัตถุดิบ</th>
+                <th class="py-3 px-4">หมวดหมู่</th>
+                <th class="py-3 px-4">สาขาที่จัดเก็บ</th>
+                <th class="py-3 px-4 text-center">จุดเตือนขั้นต่ำ</th>
+                <th class="py-3 px-4 text-right">จำนวนคงเหลือ</th>
+                <th class="py-3 px-4 text-center">สถานะ</th>
+                <th class="py-3 px-4 text-center">การจัดการ</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-cream-100">
+              <tr v-for="item in branchInventory" :key="item.id" 
+                  :class="item.quantity <= item.minThreshold ? 'bg-amber-50/50' : 'hover:bg-cream-50/60'"
+                  class="transition">
+                <td class="py-3 px-4 font-mono text-gray-500">{{ item.code }}</td>
+                <td class="py-3 px-4 font-bold text-choco-900">{{ item.name }}</td>
+                <td class="py-3 px-4 text-gray-500">{{ item.category }}</td>
+                <td class="py-3 px-4">{{ currentBranch.name }}</td>
+                <td class="py-3 px-4 text-center text-gray-500">{{ item.minThreshold }} {{ item.unit }}</td>
+                <td class="py-3 px-4 text-right font-extrabold text-sm" 
+                    :class="item.quantity <= item.minThreshold ? 'text-berry-600' : 'text-pistachio-600'">
+                  {{ item.quantity }} {{ item.unit }}
+                </td>
+                <td class="py-3 px-4 text-center">
+                  <span v-if="item.quantity <= 0" class="bg-gray-200 text-gray-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    สินค้าหมด
+                  </span>
+                  <span v-else-if="item.quantity <= item.minThreshold" class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center justify-center space-x-1 w-max mx-auto">
+                    <i class="ph ph-warning"></i>
+                    <span>ใกล้หมด (Low Stock)</span>
+                  </span>
+                  <span v-else class="bg-pistachio-100 text-pistachio-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    ปกติ (In Stock)
+                  </span>
+                </td>
+                <td class="py-3 px-4 text-center space-x-1 whitespace-nowrap">
+                  <button @click="quickRestock(item)" class="px-2 py-1 rounded-lg bg-cream-100 hover:bg-pistachio-500 hover:text-white text-choco-900 text-[11px] font-medium transition" title="เพิ่มสต็อก">
+                    + เติม
+                  </button>
+                  <button @click="decreaseStock(item)" class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-500 hover:text-white text-amber-800 text-[11px] font-medium transition" title="ลดสต็อก/ของเสีย">
+                    - ลด
+                  </button>
+                  <button @click="deleteStockItem(item)" class="px-2 py-1 rounded-lg bg-berry-50 hover:bg-berry-500 hover:text-white text-berry-600 text-[11px] font-medium transition" title="ลบวัตถุดิบออกจากคลัง">
+                    <i class="ph ph-trash"></i> ลบ
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- VIEW 4: MANAGER DASHBOARD & PROMOTIONS (Req 15, 16, 18, 19, 20) -->
+    <!-- ======================================================== -->
+    <div v-if="currentView === 'manager'" class="flex-1 flex flex-col bg-cream-50 p-6 overflow-y-auto">
+      
+      <!-- Top Manager Header -->
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <h2 class="text-xl font-heading font-bold text-choco-900">แดชบอร์ดผู้จัดการ & รายงานผลดำเนินงาน</h2>
+          <p class="text-xs text-gray-500">ตรวจสอบยอดขาย จัดการโปรโมชั่น และดูรายงานแยกรายสาขา</p>
+        </div>
+        <div class="flex space-x-2">
+          <!-- Print / Export Sales Report (Req 19) -->
+          <button @click="printSalesReport" class="bg-choco-900 hover:bg-choco-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center space-x-1.5 shadow-sm transition">
+            <i class="ph ph-printer text-base"></i>
+            <span>จัดทำรายงานยอดขาย (Report)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Multi-branch Performance Cards (Req 18, 20) -->
+      <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="bg-white p-4 rounded-2xl border border-cream-200 shadow-sm">
+          <p class="text-xs text-gray-400 font-medium">ยอดขายรวมสาขานี้</p>
+          <h3 class="text-2xl font-bold text-pistachio-600 mt-1">฿{{ currentBranchSales }}</h3>
+          <p class="text-[10px] text-gray-400 mt-1">สาขา: {{ currentBranch.name }}</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-cream-200 shadow-sm">
+          <p class="text-xs text-gray-400 font-medium">จำนวนคำสั่งซื้อรวม</p>
+          <h3 class="text-2xl font-bold text-choco-900 mt-1">{{ currentBranchOrderCount }} <span class="text-sm font-normal text-gray-500">ออเดอร์</span></h3>
+          <p class="text-[10px] text-gray-400 mt-1">เฉลี่ยต่อบิล: ฿{{ currentBranchAvgOrder }}</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-cream-200 shadow-sm">
+          <p class="text-xs text-gray-400 font-medium">สมาชิกทั้งหมดในระบบ</p>
+          <h3 class="text-2xl font-bold text-choco-900 mt-1">{{ customers.length }} <span class="text-sm font-normal text-gray-500">คน</span></h3>
+          <p class="text-[10px] text-pistachio-600 mt-1">+{{ todayNewMembers }} สมาชิกใหม่วันนี้</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-cream-200 shadow-sm">
+          <p class="text-xs text-gray-400 font-medium">สัดส่วนการชำระเงิน</p>
+          <div class="flex flex-wrap gap-1.5 mt-2">
+            <span class="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">เงินสด: {{ cashRatio }}%</span>
+            <span class="text-[11px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded">QR: {{ digitalRatio }}%</span>
+            <span class="text-[11px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">บัตร: {{ cardRatio }}%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Compare Branches Grid (Req 18) -->
+      <div class="bg-white p-5 rounded-2xl border border-cream-200 shadow-sm mb-6">
+        <h3 class="text-sm font-bold text-choco-900 mb-3 flex items-center">
+          <i class="ph ph-chart-bar mr-1.5 text-pistachio-600 text-lg"></i>
+          เปรียบเทียบผลการดำเนินงานระหว่างสาขา (Multi-Branch Performance)
+        </h3>
+        <div class="grid grid-cols-3 gap-4">
+          <div v-for="b in branches" :key="b.id" 
+               :class="b.id === currentBranchId ? 'border-2 border-pistachio-500 bg-pistachio-50/40' : 'border border-cream-200 bg-cream-50/30'"
+               class="p-4 rounded-xl transition">
+            <div class="flex justify-between items-start">
+              <h4 class="font-bold text-sm text-choco-900">{{ b.name }}</h4>
+              <span v-if="b.id === currentBranchId" class="text-[10px] font-bold bg-pistachio-600 text-white px-2 py-0.5 rounded">
+                สาขาปัจจุบัน
+              </span>
+            </div>
+            <p class="text-xs text-gray-500 mt-0.5">{{ b.location }}</p>
+            <div class="mt-3 pt-3 border-t border-cream-200/80 flex justify-between items-baseline">
+              <span class="text-xs text-gray-400">ยอดขายรวม:</span>
+              <span class="text-lg font-extrabold text-pistachio-700">฿{{ getBranchSales(b.id) }}</span>
+            </div>
+            <div class="flex justify-between text-[11px] text-gray-400 mt-1">
+              <span>ออเดอร์: {{ getBranchOrders(b.id) }} บิล</span>
+              <button @click="currentBranchId = b.id; onBranchChange()" class="text-pistachio-600 font-semibold hover:underline">
+                สลับดูสาขานี้
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Promotion Management Section (Req 15, 16) -->
+      <div class="bg-white p-5 rounded-2xl border border-cream-200 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-sm font-bold text-choco-900 flex items-center">
+              <i class="ph ph-tag mr-1.5 text-pistachio-600 text-lg"></i>
+              การจัดการโปรโมชั่น (Promotion Management)
+            </h3>
+            <p class="text-xs text-gray-400">ผู้จัดการสามารถเพิ่ม หรือ ลบโปรโมชั่นสำหรับใช้คิดส่วนลดอัตโนมัติที่หน้าร้าน POS</p>
+          </div>
+          <button @click="showAddPromoModal = true" class="bg-pistachio-600 hover:bg-pistachio-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center space-x-1 shadow-sm transition">
+            <i class="ph ph-plus"></i>
+            <span>+ เพิ่มโปรโมชั่นใหม่ (Req 15)</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div v-for="promo in promotions" :key="promo.id" 
+               class="p-3.5 rounded-xl border border-cream-200 bg-cream-50/50 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-start">
+                <span class="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
+                  {{ promo.code }}
+                </span>
+                <!-- Delete Promotion (Req 16) -->
+                <button @click="deletePromotion(promo.id)" class="text-berry-500 hover:text-berry-700 text-xs" title="ลบโปรโมชั่น">
+                  <i class="ph ph-trash text-sm"></i>
+                </button>
+              </div>
+              <h4 class="font-bold text-xs text-choco-900 mt-2">{{ promo.name }}</h4>
+              <p class="text-[11px] text-gray-500 mt-1">{{ promo.desc }}</p>
+            </div>
+
+            <div class="mt-3 pt-2 border-t border-cream-200 flex justify-between items-center text-xs">
+              <span class="text-gray-400">ส่วนลด:</span>
+              <span class="font-extrabold text-pistachio-700">{{ promo.discountText }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gelato Menu Management Section -->
+      <div class="bg-white p-5 rounded-2xl border border-cream-200 shadow-sm mt-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-sm font-bold text-choco-900 flex items-center">
+              <i class="ph ph-ice-cream mr-1.5 text-pistachio-600 text-lg"></i>
+              การจัดการรายการเมนูและรสชาติ (Gelato Menu Management)
+            </h3>
+            <p class="text-xs text-gray-400">ผู้จัดการสามารถเพิ่มรสชาติใหม่ ตั้งราคา และเปิดขายที่เคาน์เตอร์ POS ได้ทันที</p>
+          </div>
+          <button @click="showAddProductModal = true" class="bg-pistachio-600 hover:bg-pistachio-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center space-x-1 shadow-sm transition">
+            <i class="ph ph-plus"></i>
+            <span>+ เพิ่มเมนูรสชาติใหม่</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-4 gap-3">
+          <div v-for="p in products" :key="p.id" class="p-3 rounded-xl border border-cream-200 bg-cream-50/40 flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+              <span class="text-2xl p-1.5 bg-white rounded-lg shadow-xs">{{ p.icon }}</span>
+              <div>
+                <h4 class="font-bold text-xs text-choco-900">{{ p.name }}</h4>
+                <p class="text-[10px] text-gray-500">฿{{ p.price }} / สกู๊ป</p>
+              </div>
+            </div>
+            <div class="flex items-center space-x-1">
+              <button @click="openEditProductModal(p)" class="p-1.5 rounded-lg bg-cream-100 hover:bg-amber-100 text-gray-500 hover:text-amber-600 transition" title="แก้ไขข้อมูลเมนู">
+                <i class="ph ph-pencil-simple text-sm"></i>
+              </button>
+              <button @click="deleteProduct(p)" class="p-1.5 rounded-lg bg-cream-100 hover:bg-berry-100 text-gray-500 hover:text-berry-600 transition" title="ลบเมนู">
+                <i class="ph ph-trash text-sm"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- VIEW 5: ACCOUNT & USER MANAGEMENT (1. จัดการบัญชี)        -->
+    <!-- 1.1 เพิ่มบัญชีผู้ใช้, 1.2 ลบบัญชีผู้ใช้, 1.3 แก้ไขข้อมูลผู้ใช้   -->
+    <!-- ======================================================== -->
+    <div v-if="currentView === 'users'" class="flex-1 flex flex-col bg-cream-50 p-6 overflow-hidden">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs font-bold bg-choco-900 text-white px-2.5 py-0.5 rounded-md">หัวข้อ 1</span>
+            <h2 class="text-xl font-heading font-bold text-choco-900">จัดการบัญชีผู้ใช้งาน (Account Management)</h2>
+          </div>
+          <p class="text-xs text-gray-500 mt-1">บริหารจัดการบัญชีผู้ใช้ในระบบ: 1.1 เพิ่มบัญชีผู้ใช้ • 1.2 ลบบัญชีผู้ใช้ • 1.3 แก้ไขข้อมูลผู้ใช้</p>
+        </div>
+        <div class="flex space-x-2">
+          <!-- 1.1 เพิ่มบัญชีผู้ใช้ -->
+          <button @click="openAddUserModal" class="bg-pistachio-600 hover:bg-pistachio-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center space-x-1.5 shadow-sm transition">
+            <i class="ph ph-user-plus text-base"></i>
+            <span>+ 1.1 เพิ่มบัญชีผู้ใช้</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Users Table Container -->
+      <div class="flex-1 bg-white rounded-2xl border border-cream-200 shadow-sm overflow-hidden flex flex-col">
+        <div class="overflow-y-auto flex-1">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-cream-100 text-choco-900 font-semibold sticky top-0 border-b border-cream-200">
+              <tr>
+                <th class="py-3 px-4">ชื่อผู้ใช้ (Username)</th>
+                <th class="py-3 px-4">ชื่อ-นามสกุล</th>
+                <th class="py-3 px-4">เบอร์โทรศัพท์</th>
+                <th class="py-3 px-4">บทบาท (Role)</th>
+                <th class="py-3 px-4">สาขาประจำการ</th>
+                <th class="py-3 px-4 text-center">สถานะ</th>
+                <th class="py-3 px-4 text-center">สลับใช้งาน</th>
+                <th class="py-3 px-4 text-center">การจัดการ</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-cream-100">
+              <tr v-for="user in users" :key="user.id" class="hover:bg-cream-50/60 transition">
+                <td class="py-3 px-4 font-mono font-bold text-choco-900 flex items-center space-x-2">
+                  <div class="w-7 h-7 rounded-full bg-pistachio-100 text-pistachio-700 font-bold flex items-center justify-center text-xs">
+                    {{ user.name.slice(0, 2) }}
+                  </div>
+                  <span>{{ user.username }}</span>
+                </td>
+                <td class="py-3 px-4 font-semibold text-choco-900">{{ user.name }}</td>
+                <td class="py-3 px-4 text-gray-500 font-mono">{{ user.phone }}</td>
+                <td class="py-3 px-4">
+                  <span :class="user.roleType === 'manager' ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-pistachio-100 text-pistachio-800 border border-pistachio-300'" class="px-2.5 py-1 rounded-md text-[10px] font-bold inline-flex items-center space-x-1">
+                    <i :class="user.roleType === 'manager' ? 'ph ph-crown' : 'ph ph-user'" class="text-xs"></i>
+                    <span>{{ user.role }}</span>
+                  </span>
+                </td>
+                <td class="py-3 px-4">{{ user.branchName }}</td>
+                <td class="py-3 px-4 text-center">
+                  <span :class="user.status === 'Active' ? 'bg-pistachio-100 text-pistachio-700' : 'bg-gray-100 text-gray-500'" class="px-2 py-0.5 rounded-full text-[10px] font-bold">
+                    ● {{ user.status === 'Active' ? 'เปิดใช้งาน' : 'ระงับการใช้' }}
+                  </span>
+                </td>
+                <td class="py-3 px-4 text-center">
+                  <button @click="switchActiveUser(user)" 
+                          :class="activeUser && activeUser.id === user.id ? 'bg-pistachio-600 text-white font-bold' : 'bg-cream-100 hover:bg-cream-200 text-gray-600'"
+                          class="px-2 py-1 rounded-lg text-[10px] transition">
+                    {{ activeUser && activeUser.id === user.id ? '✓ กำลังใช้งาน' : 'เข้าสู่ระบบ' }}
+                  </button>
+                </td>
+                <td class="py-3 px-4 text-center space-x-2">
+                  <!-- 1.3 แก้ไขข้อมูลผู้ใช้ -->
+                  <button @click="openEditUserModal(user)" class="px-2.5 py-1 rounded-lg bg-cream-100 hover:bg-cream-200 text-choco-900 text-[11px] font-medium transition inline-flex items-center space-x-1">
+                    <i class="ph ph-note-pencil text-xs text-pistachio-600"></i>
+                    <span>1.3 แก้ไข</span>
+                  </button>
+                  <!-- 1.2 ลบบัญชีผู้ใช้ -->
+                  <button @click="deleteUser(user)" class="px-2.5 py-1 rounded-lg bg-berry-50 hover:bg-berry-100 text-berry-600 text-[11px] font-medium transition inline-flex items-center space-x-1">
+                    <i class="ph ph-trash text-xs"></i>
+                    <span>1.2 ลบ</span>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: PRODUCT CUSTOMIZATION (Flavors, Cones, Toppings)  -->
+  <!-- ======================================================== -->
+  <div v-if="showCustomModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border border-cream-200 flex flex-col max-h-[90vh]">
+      
+      <div class="flex items-start justify-between pb-3 border-b border-cream-200">
+        <div class="flex items-center space-x-3">
+          <span class="text-4xl p-2 rounded-2xl bg-cream-100">{{ currentCustomItem.icon }}</span>
+          <div>
+            <h3 class="text-xl font-heading font-bold text-choco-900 leading-snug">{{ currentCustomItem.name }}</h3>
+            <p class="text-sm text-pistachio-600 font-bold mt-0.5">ราคาเริ่มต้น ฿{{ currentCustomItem.price }}</p>
+          </div>
+        </div>
+        <button @click="showCustomModal = false" class="text-gray-400 hover:text-gray-600 p-1">
+          <i class="ph ph-x text-lg"></i>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto py-3 space-y-4 text-xs">
+        <!-- 1. Select Serving Container -->
+        <div>
+          <label class="font-bold text-choco-900 block mb-2">1. เลือกภาชนะใส่ไอศกรีม:</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button v-for="c in containers" :key="c.name"
+                    @click="selectedContainer = c"
+                    :class="selectedContainer.name === c.name ? 'border-2 border-pistachio-600 bg-pistachio-50 text-pistachio-900 font-bold' : 'border border-cream-200 text-gray-700 hover:bg-cream-100'"
+                    class="p-2.5 rounded-xl text-left transition flex justify-between items-center">
+              <span>{{ c.name }}</span>
+              <span class="text-xs text-gray-500">+฿{{ c.price }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. Select Additional Toppings -->
+        <div>
+          <label class="font-bold text-choco-900 block mb-2">2. เลือกท็อปปิ้งเพิ่มเติม:</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button v-for="t in availableToppings" :key="t.name"
+                    @click="toggleTopping(t)"
+                    :class="selectedToppings.some(item => item.name === t.name) ? 'border-2 border-pistachio-600 bg-pistachio-50 text-pistachio-900 font-bold' : 'border border-cream-200 text-gray-700 hover:bg-cream-100'"
+                    class="p-2 rounded-xl text-left transition flex justify-between items-center">
+              <span>{{ t.name }}</span>
+              <span class="text-xs text-gray-500">+฿{{ t.price }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Price preview -->
+        <div class="bg-cream-50 p-3 rounded-2xl flex justify-between items-center font-bold text-sm">
+          <span>ราคารวมรายการนี้:</span>
+          <span class="text-pistachio-600 text-base">฿{{ customItemCalculatedPrice }}</span>
+        </div>
+      </div>
+
+      <div class="pt-3 border-t border-cream-200 flex space-x-2">
+        <button @click="showCustomModal = false" class="w-1/3 py-2.5 rounded-xl border border-cream-300 text-xs font-semibold text-gray-600 hover:bg-cream-100">
+          ยกเลิก
+        </button>
+        <button @click="confirmAddToCart" class="w-2/3 py-2.5 rounded-xl bg-pistachio-600 hover:bg-pistachio-700 text-white text-xs font-bold shadow-md transition">
+          + เพิ่มลงในบิล (฿{{ customItemCalculatedPrice }})
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: MEMBER REGISTRATION (Req 1)                       -->
+  <!-- ======================================================== -->
+  <div v-if="showMemberModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-5 shadow-2xl border border-cream-200">
+      <div class="flex items-center justify-between pb-2 border-b border-cream-200">
+        <h3 class="text-base font-heading font-bold text-choco-900 flex items-center">
+          <i class="ph ph-user-plus text-pistachio-600 mr-1.5"></i>
+          สมัครสมาชิกใหม่ (Member Signup)
+        </h3>
+        <button @click="showMemberModal = false" class="text-gray-400 hover:text-gray-600">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-gray-400 mt-2 mb-4">กรอกชื่อและเบอร์โทรเพื่อรับส่วนลดสมาชิก 10% ทุกคำสั่งซื้อทันที</p>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">ชื่อลูกค้า *</label>
+          <input type="text" v-model="newMemberName" placeholder="เช่น คุณส้มโอ, คุณเดวิด"
+                 class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-pistachio-500">
+        </div>
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">เบอร์โทรศัพท์ (10 หลัก) *</label>
+          <input type="tel" v-model="newMemberPhone" placeholder="เช่น 0891234567"
+                 class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-pistachio-500">
+        </div>
+      </div>
+
+      <div class="mt-5 flex space-x-2">
+        <button @click="showMemberModal = false" class="w-1/3 py-2 rounded-xl border border-cream-300 text-xs font-semibold text-gray-600">
+          ยกเลิก
+        </button>
+        <button @click="registerMember" class="w-2/3 py-2 rounded-xl bg-pistachio-600 hover:bg-pistachio-700 text-white text-xs font-bold shadow-md transition">
+          บันทึกสมัครสมาชิก
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: CASH PAYMENT & CHANGE CALCULATOR (Req 9)          -->
+  <!-- ======================================================== -->
+  <div v-if="showCashModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-5 shadow-2xl border border-cream-200">
+      <div class="flex items-center justify-between pb-2 border-b border-cream-200">
+        <h3 class="text-base font-heading font-bold text-choco-900 flex items-center">
+          <i class="ph ph-money text-amber-600 mr-1.5 text-lg"></i>
+          ชำระด้วยเงินสด (Cash Payment)
+        </h3>
+        <button @click="showCashModal = false" class="text-gray-400 hover:text-gray-600">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+
+      <div class="my-4 text-center bg-cream-100 p-3 rounded-2xl">
+        <span class="text-xs text-gray-500">ยอดที่ต้องชำระ:</span>
+        <div class="text-3xl font-extrabold text-pistachio-700 mt-0.5">฿{{ cartNetTotal }}</div>
+      </div>
+
+      <!-- Received Amount Input & Quick Buttons -->
+      <div class="space-y-2 text-xs">
+        <label class="block font-semibold text-choco-900">รับเงินจากลูกค้ามา:</label>
+        <input type="number" v-model.number="cashReceived" placeholder="0.00" 
+               class="w-full text-center text-xl font-bold bg-cream-50 border border-cream-300 rounded-xl py-2 focus:outline-none focus:ring-2 focus:ring-pistachio-500">
+        
+        <!-- Quick cash buttons -->
+        <div class="grid grid-cols-4 gap-1.5 pt-1">
+          <button @click="cashReceived = cartNetTotal" class="py-1 bg-cream-200 hover:bg-cream-300 rounded-lg font-bold text-[11px]">
+            พอดี
+          </button>
+          <button @click="cashReceived = 100" class="py-1 bg-cream-200 hover:bg-cream-300 rounded-lg font-bold text-[11px]">
+            100.-
+          </button>
+          <button @click="cashReceived = 500" class="py-1 bg-cream-200 hover:bg-cream-300 rounded-lg font-bold text-[11px]">
+            500.-
+          </button>
+          <button @click="cashReceived = 1000" class="py-1 bg-cream-200 hover:bg-cream-300 rounded-lg font-bold text-[11px]">
+            1,000.-
+          </button>
+        </div>
+
+        <!-- Calculated Change Box -->
+        <div class="mt-3 p-3 rounded-xl border border-cream-200 flex justify-between items-center"
+             :class="cashChange >= 0 ? 'bg-pistachio-50 text-pistachio-900' : 'bg-berry-50 text-berry-700'">
+          <span class="font-bold">เงินทอน (Change):</span>
+          <span class="text-xl font-extrabold">฿{{ cashChange >= 0 ? cashChange : 'เงินไม่พอ' }}</span>
+        </div>
+      </div>
+
+      <div class="mt-5 flex space-x-2">
+        <button @click="showCashModal = false" class="w-1/3 py-2.5 rounded-xl border border-cream-300 text-xs font-semibold text-gray-600">
+          ยกเลิก
+        </button>
+        <button @click="completePayment('Cash')" :disabled="cashChange < 0" 
+                class="w-2/3 py-2.5 rounded-xl bg-choco-900 hover:bg-choco-800 text-white text-xs font-bold shadow-md transition disabled:opacity-40">
+          ยืนยันชำระเงิน & ออกใบเสร็จ
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: DIGITAL / QR PAYMENT (Req 8)                      -->
+  <!-- ======================================================== -->
+  <div v-if="showDigitalModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-cream-200 text-center">
+      <div class="flex items-center justify-between pb-2 border-b border-cream-200">
+        <h3 class="text-base font-heading font-bold text-choco-900 flex items-center">
+          <i class="ph ph-qr-code text-blue-600 mr-1.5 text-lg"></i>
+          ชำระเงินดิจิทัล / PromptPay QR
+        </h3>
+        <button @click="showDigitalModal = false" class="text-gray-400 hover:text-gray-600">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-gray-400 mt-2">สแกน QR Code ด้วย Mobile Banking ได้ทุกธนาคาร</p>
+
+      <!-- Simulated PromptPay QR Box -->
+      <div class="my-4 p-4 bg-cream-50 rounded-2xl border-2 border-dashed border-pistachio-500 inline-block">
+        <div class="w-48 h-48 bg-white p-2 rounded-xl shadow-inner flex flex-col items-center justify-center relative">
+          <!-- QR Mock Graphic -->
+          <div class="grid grid-cols-6 gap-1 w-36 h-36 opacity-85">
+            <div v-for="i in 36" :key="i" :class="(i % 2 === 0 || i % 5 === 0) ? 'bg-choco-900' : 'bg-transparent'" class="rounded-sm"></div>
+          </div>
+          <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span class="bg-white p-1 rounded-full shadow text-sm">🍦</span>
+          </div>
+        </div>
+        <p class="text-[10px] text-gray-400 mt-2 font-mono">GELATO-PP-{{ Math.floor(100000 + Math.random() * 900000) }}</p>
+      </div>
+
+      <div class="text-2xl font-extrabold text-pistachio-700">฿{{ cartNetTotal }}</div>
+
+      <div class="mt-5 flex space-x-2">
+        <button @click="showDigitalModal = false" class="w-1/3 py-2.5 rounded-xl border border-cream-300 text-xs font-semibold text-gray-600">
+          ยกเลิก
+        </button>
+        <button @click="completePayment('Digital')" class="w-2/3 py-2.5 rounded-xl bg-pistachio-600 hover:bg-pistachio-700 text-white text-xs font-bold shadow-md transition">
+          จำลองลูกค้ายืนยันโอนสำเร็จ
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: CREDIT CARD PAYMENT (EDC Terminal)                -->
+  <!-- ======================================================== -->
+  <div v-if="showCreditCardModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-cream-200 text-center">
+      <div class="flex items-center justify-between pb-2 border-b border-cream-200">
+        <h3 class="text-base font-heading font-bold text-choco-900 flex items-center">
+          <i class="ph ph-credit-card text-indigo-600 mr-1.5 text-lg"></i>
+          ชำระด้วยบัตรเครดิต / เดบิต (EDC)
+        </h3>
+        <button @click="showCreditCardModal = false" class="text-gray-400 hover:text-gray-600">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-gray-400 mt-2">แตะบัตร (Contactless) หรือเสียบบัตรเข้าเครื่องรูด EDC</p>
+
+      <!-- Simulated Credit Card & Terminal Display -->
+      <div class="my-4">
+        <!-- Visual Virtual Card Mockup -->
+        <div class="w-full bg-linear-to-tr from-slate-900 via-indigo-950 to-indigo-800 text-white rounded-2xl p-4 shadow-xl text-left relative overflow-hidden">
+          <div class="absolute -right-6 -bottom-6 w-28 h-28 bg-white/10 rounded-full blur-xs pointer-events-none"></div>
+          <div class="flex justify-between items-center mb-3">
+            <span class="text-xs font-bold tracking-wider text-indigo-200">GELATO EDC TERMINAL</span>
+            <span class="text-xs font-black tracking-widest text-amber-400 bg-amber-400/20 px-2 py-0.5 rounded">{{ creditCardType }}</span>
+          </div>
+
+          <div class="flex items-center space-x-2 my-2">
+            <!-- Simulated EMV Chip -->
+            <div class="w-8 h-6 bg-amber-300 rounded-sm border border-amber-400 flex items-center justify-center shadow-xs">
+              <div class="w-5 h-4 border border-amber-500/60 rounded-xs"></div>
+            </div>
+            <!-- Contactless Icon -->
+            <i class="ph ph-broadcast text-lg text-white/80"></i>
+          </div>
+
+          <div class="font-mono text-sm tracking-widest my-2 text-white/95 font-bold">
+            {{ creditCardNumber }}
+          </div>
+
+          <div class="flex justify-between items-end text-[10px] text-indigo-200 mt-2 pt-1 border-t border-white/10">
+            <div>
+              <p class="text-[8px] text-indigo-300 uppercase">Card Holder</p>
+              <p class="font-semibold text-white tracking-wide">{{ creditCardHolder }}</p>
+            </div>
+            <div>
+              <p class="text-[8px] text-indigo-300 uppercase">Expires</p>
+              <p class="font-mono font-semibold text-white">12/28</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Terminal Status simulation badge -->
+        <div class="mt-3 bg-indigo-50 border border-indigo-100 rounded-xl p-2.5 flex items-center justify-between text-xs text-indigo-950">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span class="font-semibold text-[11px]">เครื่อง EDC พร้อมรับบัตร</span>
+          </div>
+          <span class="font-mono text-[10px] text-indigo-500 font-bold">MID: 08849-01</span>
+        </div>
+      </div>
+
+      <div class="my-2">
+        <span class="text-xs text-gray-500">ยอดชำระสุทธิ:</span>
+        <div class="text-3xl font-extrabold text-indigo-600">฿{{ cartNetTotal }}</div>
+      </div>
+
+      <!-- Quick Card Type Switcher -->
+      <div class="flex justify-center space-x-2 my-2">
+        <button type="button" @click="creditCardType = 'VISA'; creditCardNumber = '4111 •••• •••• 4242'"
+                :class="creditCardType === 'VISA' ? 'bg-indigo-600 text-white font-bold' : 'bg-cream-100 text-gray-600'"
+                class="px-2.5 py-1 rounded-lg text-[10px] transition">
+          Visa
+        </button>
+        <button type="button" @click="creditCardType = 'MASTERCARD'; creditCardNumber = '5500 •••• •••• 8899'"
+                :class="creditCardType === 'MASTERCARD' ? 'bg-indigo-600 text-white font-bold' : 'bg-cream-100 text-gray-600'"
+                class="px-2.5 py-1 rounded-lg text-[10px] transition">
+          Mastercard
+        </button>
+        <button type="button" @click="creditCardType = 'JCB'; creditCardNumber = '3528 •••• •••• 1234'"
+                :class="creditCardType === 'JCB' ? 'bg-indigo-600 text-white font-bold' : 'bg-cream-100 text-gray-600'"
+                class="px-2.5 py-1 rounded-lg text-[10px] transition">
+          JCB
+        </button>
+      </div>
+
+      <div class="mt-4 flex space-x-2">
+        <button @click="showCreditCardModal = false" class="w-1/3 py-2.5 rounded-xl border border-cream-300 text-xs font-semibold text-gray-600 hover:bg-cream-100 transition">
+          ยกเลิก
+        </button>
+        <button @click="completePayment('CreditCard')" class="w-2/3 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md transition flex items-center justify-center space-x-1.5">
+          <i class="ph ph-check-circle text-base"></i>
+          <span>อนุมัติชำระเงินสำเร็จ</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: THERMAL RECEIPT DISPLAY (Req 12)                  -->
+  <!-- ======================================================== -->
+  <div v-if="showReceiptModal && currentReceiptOrder" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-cream-300 flex flex-col max-h-[95vh]">
+      
+      <!-- Print Area (Thermal Slip style) -->
+      <div id="receipt-print-area" class="bg-cream-50 p-4 rounded-xl border border-cream-200 text-choco-900 font-mono text-[11px] space-y-2 overflow-y-auto">
+        <div class="text-center pb-2 border-b border-dashed border-gray-300">
+          <p class="text-base font-bold font-sans">GELATO BAR ITALIA</p>
+          <p class="text-[10px] text-gray-500">{{ currentReceiptOrder.branchName }}</p>
+          <p class="text-[9px] text-gray-400">Tax ID: 0105566089221 (สำนักงานใหญ่)</p>
+        </div>
+
+        <div class="text-[10px] space-y-0.5 text-gray-600 pb-1 border-b border-dashed border-gray-300">
+          <div class="flex justify-between">
+            <span>บิลเลขที่:</span>
+            <span class="font-bold text-choco-900">{{ currentReceiptOrder.orderNumber }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span>วันที่-เวลา:</span>
+            <span>{{ currentReceiptOrder.time }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span>พนักงาน:</span>
+            <span>{{ currentReceiptOrder.staffName || (activeUser ? activeUser.name : 'น้องมินท์') }}</span>
+          </div>
+          <div v-if="currentReceiptOrder.customerName" class="flex justify-between text-pistachio-700 font-bold">
+            <span>สมาชิก:</span>
+            <span>{{ currentReceiptOrder.customerName }}</span>
+          </div>
+        </div>
+
+        <!-- Line items -->
+        <div class="space-y-1.5 py-1 border-b border-dashed border-gray-300">
+          <div v-for="(it, i) in currentReceiptOrder.items" :key="i" class="flex justify-between">
+            <div>
+              <p class="font-bold">{{ it.qty }}x {{ it.productName }}</p>
+              <p class="text-[9px] text-gray-400 pl-2">- {{ it.servingType }}</p>
+            </div>
+            <span>฿{{ it.totalPrice }}</span>
+          </div>
+        </div>
+
+        <!-- Totals -->
+        <div class="space-y-1 pt-1 text-[11px]">
+          <div class="flex justify-between text-gray-500">
+            <span>ยอดรวมสินค้า:</span>
+            <span>฿{{ currentReceiptOrder.subtotal }}</span>
+          </div>
+          <div v-if="currentReceiptOrder.discount > 0" class="flex justify-between text-pistachio-700">
+            <span>ส่วนลดรวม:</span>
+            <span>-฿{{ currentReceiptOrder.discount }}</span>
+          </div>
+          <div class="flex justify-between font-bold text-xs pt-1 border-t border-gray-200">
+            <span>ยอดสุทธิ (Total):</span>
+            <span class="text-sm">฿{{ currentReceiptOrder.netTotal }}</span>
+          </div>
+          <div class="flex justify-between text-[10px] text-gray-500 pt-1">
+            <span>วิธีชำระ:</span>
+            <span>{{ currentReceiptOrder.paymentMethod === 'Cash' ? 'เงินสด (Cash)' : currentReceiptOrder.paymentMethod === 'CreditCard' ? 'บัตรเครดิต (Credit Card)' : 'ดิจิทัล (PromptPay)' }}</span>
+          </div>
+          <div v-if="currentReceiptOrder.paymentMethod === 'CreditCard'" class="flex justify-between text-[10px] text-indigo-700 font-semibold">
+            <span>บัตร EDC:</span>
+            <span>อนุมัติ (APP: 849201)</span>
+          </div>
+          <div v-if="currentReceiptOrder.paymentMethod === 'Cash'" class="flex justify-between text-[10px] text-gray-500">
+            <span>รับเงินมา:</span>
+            <span>฿{{ currentReceiptOrder.cashReceived }}</span>
+          </div>
+          <div v-if="currentReceiptOrder.paymentMethod === 'Cash'" class="flex justify-between text-[10px] text-gray-500">
+            <span>เงินทอน:</span>
+            <span>฿{{ currentReceiptOrder.cashChange }}</span>
+          </div>
+        </div>
+
+        <div class="text-center pt-3 border-t border-dashed border-gray-300 text-[10px] text-gray-400">
+          <p>ขอบคุณที่อุดหนุนเจลาโต้อิตาเลียนแท้</p>
+          <p class="text-[8px] mt-0.5">Please enjoy your handcrafted gelato!</p>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="mt-4 flex space-x-2 no-print">
+        <button @click="showReceiptModal = false" class="w-1/2 py-2.5 rounded-xl border border-cream-300 text-xs font-semibold text-gray-600 hover:bg-cream-100">
+          ปิดหน้าต่าง
+        </button>
+        <button @click="printReceipt" class="w-1/2 py-2.5 rounded-xl bg-choco-900 hover:bg-choco-800 text-white text-xs font-bold shadow-md transition flex items-center justify-center space-x-1">
+          <i class="ph ph-printer"></i>
+          <span>พิมพ์ใบเสร็จ (Print)</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: LOW STOCK ALERT POP-UP (Req 14)                   -->
+  <!-- ======================================================== -->
+  <div v-if="showLowStockModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border-2 border-amber-500/80">
+      
+      <div class="flex items-center space-x-3 text-amber-600 mb-3">
+        <div class="w-10 h-10 rounded-2xl bg-amber-100 flex items-center justify-center text-2xl font-bold">
+          ⚠️
+        </div>
+        <div>
+          <h3 class="text-base font-heading font-bold text-choco-900">แจ้งเตือน: วัตถุดิบใกล้หมด! (Low Stock)</h3>
+          <p class="text-xs text-gray-500">สาขา: {{ currentBranch.name }}</p>
+        </div>
+      </div>
+
+      <p class="text-xs text-gray-600 mb-3">
+        ระบบตรวจพบวัตถุดิบลดลงถึงหรือต่ำกว่าเกณฑ์ขั้นต่ำ (Threshold) กรุณาตรวจสอบและเพิ่มสต็อก:
+      </p>
+
+      <div class="max-h-48 overflow-y-auto space-y-2 mb-4">
+        <div v-for="item in lowStockItems" :key="item.id" 
+             class="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200 flex justify-between items-center text-xs">
+          <div>
+            <p class="font-bold text-choco-900">{{ item.name }} ({{ item.category }})</p>
+            <p class="text-[10px] text-gray-500">จุดเตือน: {{ item.minThreshold }} {{ item.unit }}</p>
+          </div>
+          <div class="text-right">
+            <span class="font-extrabold text-sm text-berry-600">{{ item.quantity }} {{ item.unit }}</span>
+            <button @click="quickRestock(item)" class="block mt-1 text-[10px] text-pistachio-700 font-bold underline">
+              + เติมด่วนทันที
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex space-x-2">
+        <button @click="showLowStockModal = false" class="w-1/2 py-2 rounded-xl border border-cream-300 text-xs font-semibold text-gray-600">
+          รับทราบ / ปิดแจ้งเตือน
+        </button>
+        <button @click="showLowStockModal = false; currentView = 'inventory'" class="w-1/2 py-2 rounded-xl bg-choco-900 text-white text-xs font-bold">
+          ไปที่หน้าคลังสต็อก
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: ADD / RESTOCK INVENTORY (Req 10)                  -->
+  <!-- ======================================================== -->
+  <div v-if="showAddStockModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-5 shadow-2xl border border-cream-200">
+      <div class="flex items-center justify-between pb-2 border-b border-cream-200">
+        <h3 class="text-base font-heading font-bold text-choco-900 flex items-center">
+          <i class="ph ph-package text-pistachio-600 mr-1.5"></i>
+          เพิ่ม Stock วัตถุดิบ (Restock)
+        </h3>
+        <button @click="showAddStockModal = false" class="text-gray-400 hover:text-gray-600">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 mt-3 text-xs">
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">เลือกวัตถุดิบ *</label>
+          <select v-model="selectedStockId" class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+            <option v-for="it in branchInventory" :key="it.id" :value="it.id">
+              {{ it.name }} (ปัจจุบัน: {{ it.quantity }} {{ it.unit }})
+            </option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">จำนวนที่สั่งเพิ่มเข้ามา *</label>
+          <input type="number" v-model.number="addStockAmount" placeholder="เช่น 20"
+                 class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-pistachio-500">
+        </div>
+      </div>
+
+      <div class="mt-5 flex space-x-2">
+        <button @click="showAddStockModal = false" class="w-1/3 py-2 rounded-xl border border-cream-300 text-xs font-semibold text-gray-600">
+          ยกเลิก
+        </button>
+        <button @click="confirmAddStock" class="w-2/3 py-2 rounded-xl bg-pistachio-600 hover:bg-pistachio-700 text-white text-xs font-bold shadow-md transition">
+          บันทึกรับเข้าคลัง
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: ADD PROMOTION (Req 15)                            -->
+  <!-- ======================================================== -->
+  <div v-if="showAddPromoModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-5 shadow-2xl border border-cream-200">
+      <div class="flex items-center justify-between pb-2 border-b border-cream-200">
+        <h3 class="text-base font-heading font-bold text-choco-900 flex items-center">
+          <i class="ph ph-tag text-pistachio-600 mr-1.5"></i>
+          เพิ่มโปรโมชั่นใหม่ (Add Promotion)
+        </h3>
+        <button @click="showAddPromoModal = false" class="text-gray-400 hover:text-gray-600">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 mt-3 text-xs">
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">ชื่อโปรโมชั่น *</label>
+          <input type="text" v-model="newPromoName" placeholder="เช่น โปรเปิดสาขาใหม่ ลด 15%"
+                 class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+        </div>
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">รหัสโค้ดโปรโมชั่น *</label>
+          <input type="text" v-model="newPromoCode" placeholder="เช่น GRANDOPEN"
+                 class="w-full uppercase bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs font-mono">
+        </div>
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">ประเภทส่วนลด</label>
+          <select v-model="newPromoType" class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+            <option value="amount">ลดเป็นบาท (Fixed Amount เช่น 30 บาท)</option>
+            <option value="percent">ลดเป็นเปอร์เซ็นต์ (Percentage เช่น 15%)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">มูลค่าส่วนลด *</label>
+          <input type="number" v-model.number="newPromoValue" placeholder="เช่น 30 หรือ 15"
+                 class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+        </div>
+      </div>
+
+      <div class="mt-5 flex space-x-2">
+        <button @click="showAddPromoModal = false" class="w-1/3 py-2 rounded-xl border border-cream-300 text-xs font-semibold text-gray-600">
+          ยกเลิก
+        </button>
+        <button @click="createPromotion" class="w-2/3 py-2 rounded-xl bg-pistachio-600 hover:bg-pistachio-700 text-white text-xs font-bold shadow-md transition">
+          สร้างโปรโมชั่น
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: ADD PRODUCT / GELATO FLAVOR                       -->
+  <!-- ======================================================== -->
+  <div v-if="showAddProductModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border border-cream-200 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-2 border-b border-cream-200">
+        <h3 class="text-base font-heading font-bold text-choco-900 flex items-center">
+          <i class="ph ph-ice-cream text-pistachio-600 mr-1.5 text-lg"></i>
+          เพิ่มเมนูรสชาติเจลาโต้ใหม่ (Add New Gelato)
+        </h3>
+        <button @click="showAddProductModal = false" class="text-gray-400 hover:text-gray-600">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-gray-400 mt-2 mb-3">เมื่อเพิ่มแล้ว เมนูจะไปแสดงที่หน้าจอสั่งซื้อ POS และเพิ่มสต็อกเข้าคลังให้อัตโนมัติทุกสาขา</p>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">ชื่อรสชาติ/เมนู *</label>
+          <input type="text" v-model="newProductName" placeholder="เช่น Durian Monthong, Nutella Hazelnut"
+                 class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-pistachio-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-choco-900 mb-1">หมวดหมู่ *</label>
+            <select v-model="newProductCategory" class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+              <option value="classic">เจลาโต้คลาสสิก (Classic)</option>
+              <option value="sorbet">ซอร์เบท์ผลไม้ (Sorbet)</option>
+              <option value="special">พรีเมียมสเปเชียล (Special)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-choco-900 mb-1">ราคาต่อสกู๊ป (บาท) *</label>
+            <input type="number" v-model.number="newProductPrice" placeholder="เช่น 99"
+                   class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-pistachio-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">คำอธิบายรสชาติ</label>
+          <input type="text" v-model="newProductDesc" placeholder="เช่น ทุเรียนหมอนทองแท้ หอมมัน เข้มข้น นุ่มละมุน"
+                 class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">เลือกไอคอน/อิโมจิประจำรสชาติ</label>
+          <div class="flex space-x-2">
+            <input type="text" v-model="newProductIcon" placeholder="🍦" class="w-14 text-center text-xl bg-cream-50 border border-cream-300 rounded-xl py-1">
+            <div class="flex-1 flex items-center space-x-1.5 overflow-x-auto py-1">
+              <button type="button" v-for="emo in ['🍨','🍦','🍫','🍓','🥭','🥥','🥑','🍋','🍒','🍪','☕','🍈']" :key="emo" 
+                      @click="newProductIcon = emo"
+                      class="text-lg p-1.5 rounded-lg bg-cream-100 hover:bg-pistachio-100 transition">
+                {{ emo }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-cream-200">
+          <div>
+            <label class="block font-semibold text-choco-900 mb-1">สต็อกเริ่มต้น (สกู๊ป) *</label>
+            <input type="number" v-model.number="newProductInitialStock" placeholder="25"
+                   class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+          </div>
+          <div>
+            <label class="block font-semibold text-choco-900 mb-1">จุดเตือนของใกล้หมด (Threshold)</label>
+            <input type="number" v-model.number="newProductThreshold" placeholder="5"
+                   class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-5 flex space-x-2">
+        <button @click="showAddProductModal = false" class="w-1/3 py-2.5 rounded-xl border border-cream-300 text-xs font-semibold text-gray-600">
+          ยกเลิก
+        </button>
+        <button @click="addProduct" class="w-2/3 py-2.5 rounded-xl bg-pistachio-600 hover:bg-pistachio-700 text-white text-xs font-bold shadow-md transition">
+          บันทึกและเปิดขายทันที
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: EDIT PRODUCT / GELATO FLAVOR                      -->
+  <!-- ======================================================== -->
+  <div v-if="showEditProductModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border border-cream-200 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-2 border-b border-cream-200">
+        <h3 class="text-base font-heading font-bold text-choco-900 flex items-center">
+          <i class="ph ph-pencil-simple text-amber-500 mr-1.5 text-lg"></i>
+          แก้ไขเมนูรสชาติเจลาโต้ (Edit Gelato Menu)
+        </h3>
+        <button @click="showEditProductModal = false" class="text-gray-400 hover:text-gray-600">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-gray-400 mt-2 mb-3">แก้ไขข้อมูลรสชาติ ราคา หรือจุดเตือนสต็อก ข้อมูลจะอัปเดตบนหน้า POS และคลังสต็อกทันที</p>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">ชื่อรสชาติ/เมนู *</label>
+          <input type="text" v-model="editProductForm.name" placeholder="ชื่อรสชาติ"
+                 class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-amber-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-choco-900 mb-1">หมวดหมู่ *</label>
+            <select v-model="editProductForm.category" class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+              <option value="classic">เจลาโต้คลาสสิก (Classic)</option>
+              <option value="sorbet">ซอร์เบท์ผลไม้ (Sorbet)</option>
+              <option value="special">พรีเมียมสเปเชียล (Special)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-choco-900 mb-1">ราคาต่อสกู๊ป (บาท) *</label>
+            <input type="number" v-model.number="editProductForm.price" placeholder="ราคา"
+                   class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-amber-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">คำอธิบายรสชาติ</label>
+          <input type="text" v-model="editProductForm.desc" placeholder="คำอธิบายรสชาติ"
+                 class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">เลือกไอคอน/อิโมจิประจำรสชาติ</label>
+          <div class="flex space-x-2">
+            <input type="text" v-model="editProductForm.icon" placeholder="🍦" class="w-14 text-center text-xl bg-cream-50 border border-cream-300 rounded-xl py-1">
+            <div class="flex-1 flex items-center space-x-1.5 overflow-x-auto py-1">
+              <button type="button" v-for="emo in ['🍨','🍦','🍫','🍓','🥭','🥥','🥑','🍋','🍒','🍪','☕','🍈','🥜','🥐','🍵']" :key="emo" 
+                      @click="editProductForm.icon = emo"
+                      class="text-lg p-1.5 rounded-lg bg-cream-100 hover:bg-amber-100 transition">
+                {{ emo }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-cream-200">
+          <div>
+            <label class="block font-semibold text-choco-900 mb-1">จุดเตือนของใกล้หมด (Threshold) ในคลัง</label>
+            <input type="number" v-model.number="editProductForm.lowThreshold" placeholder="5"
+                   class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-5 flex space-x-2">
+        <button @click="showEditProductModal = false" class="w-1/3 py-2.5 rounded-xl border border-cream-300 text-xs font-semibold text-gray-600 hover:bg-cream-100 transition">
+          ยกเลิก
+        </button>
+        <button @click="saveEditProduct" class="w-2/3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-md transition">
+          บันทึกการแก้ไข
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: 1.1 เพิ่มบัญชีผู้ใช้ (ADD USER)                    -->
+  <!-- ======================================================== -->
+  <div v-if="showAddUserModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border border-cream-200">
+      <div class="flex items-center justify-between pb-2 border-b border-cream-200">
+        <h3 class="text-base font-heading font-bold text-choco-900 flex items-center">
+          <i class="ph ph-user-plus text-pistachio-600 mr-1.5 text-lg"></i>
+          1.1 เพิ่มบัญชีผู้ใช้ใหม่ (Add User Account)
+        </h3>
+        <button @click="showAddUserModal = false" class="text-gray-400 hover:text-gray-600">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 mt-3 text-xs">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-choco-900 mb-1">ชื่อผู้ใช้ (Username) *</label>
+            <input type="text" v-model="userForm.username" placeholder="เช่น ploy@staff หรือ boss@manager"
+                   class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs font-mono">
+            <p class="text-[10px] text-gray-400 mt-0.5">* หากไม่ระบุ @ ระบบจะต่อท้ายให้อัตโนมัติ</p>
+          </div>
+          <div>
+            <label class="block font-semibold text-choco-900 mb-1">รหัสผ่าน / PIN *</label>
+            <input type="password" v-model="userForm.password" placeholder="••••"
+                   class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">ชื่อ-นามสกุล *</label>
+          <input type="text" v-model="userForm.name" placeholder="เช่น น.ส. พลอยไพลิน สุขใจ"
+                 class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">เบอร์โทรศัพท์ *</label>
+          <input type="tel" v-model="userForm.phone" placeholder="เช่น 089-123-4567"
+                 class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-choco-900 mb-1">บทบาท (Role) *</label>
+            <select v-model="userForm.roleType" class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+              <option value="staff">Staff (พนักงานแคชเชียร์/หน้าร้าน)</option>
+              <option value="manager">Manager (ผู้จัดการร้าน)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-choco-900 mb-1">สาขาประจำการ *</label>
+            <select v-model="userForm.branchId" class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+              <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-5 flex space-x-2">
+        <button @click="showAddUserModal = false" class="w-1/3 py-2.5 rounded-xl border border-cream-300 text-xs font-semibold text-gray-600">
+          ยกเลิก
+        </button>
+        <button @click="saveNewUser" class="w-2/3 py-2.5 rounded-xl bg-pistachio-600 hover:bg-pistachio-700 text-white text-xs font-bold shadow-md transition">
+          บันทึกสร้างบัญชีผู้ใช้
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: 1.3 แก้ไขข้อมูลผู้ใช้ (EDIT USER)                  -->
+  <!-- ======================================================== -->
+  <div v-if="showEditUserModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border border-cream-200">
+      <div class="flex items-center justify-between pb-2 border-b border-cream-200">
+        <h3 class="text-base font-heading font-bold text-choco-900 flex items-center">
+          <i class="ph ph-note-pencil text-pistachio-600 mr-1.5 text-lg"></i>
+          1.3 แก้ไขข้อมูลผู้ใช้ (Edit User)
+        </h3>
+        <button @click="showEditUserModal = false" class="text-gray-400 hover:text-gray-600">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 mt-3 text-xs">
+        <div>
+          <label class="block font-semibold text-gray-400 mb-1">ชื่อผู้ใช้ (Username - ห้ามแก้)</label>
+          <input type="text" :value="userForm.username" disabled
+                 class="w-full bg-gray-100 border border-cream-300 rounded-xl px-3 py-2 text-xs font-mono text-gray-500 cursor-not-allowed">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">ชื่อ-นามสกุล *</label>
+          <input type="text" v-model="userForm.name" class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">เบอร์โทรศัพท์ *</label>
+          <input type="tel" v-model="userForm.phone" class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-choco-900 mb-1">บทบาท (Role)</label>
+            <select v-model="userForm.roleType" class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+              <option value="staff">Staff (พนักงานแคชเชียร์/หน้าร้าน)</option>
+              <option value="manager">Manager (ผู้จัดการร้าน)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-choco-900 mb-1">สาขาประจำการ</label>
+            <select v-model="userForm.branchId" class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+              <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-choco-900 mb-1">สถานะบัญชี</label>
+          <select v-model="userForm.status" class="w-full bg-cream-50 border border-cream-300 rounded-xl px-3 py-2 text-xs">
+            <option value="Active">Active (เปิดใช้งานปกติ)</option>
+            <option value="Inactive">Inactive (ระงับการใช้งานชั่วคราว)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mt-5 flex space-x-2">
+        <button @click="showEditUserModal = false" class="w-1/3 py-2.5 rounded-xl border border-cream-300 text-xs font-semibold text-gray-600">
+          ยกเลิก
+        </button>
+        <button @click="saveEditUser" class="w-2/3 py-2.5 rounded-xl bg-pistachio-600 hover:bg-pistachio-700 text-white text-xs font-bold shadow-md transition">
+          บันทึกการแก้ไข
+        </button>
+      </div>
+    </div>
+  </div>
+
+  </div> <!-- end v-else (Main POS Interface) -->
+
+</div> <!-- end #app -->
+
+<!-- ================= VUE 3 APPLICATION LOGIC ================= -->
+<script>
+  const { createApp, ref, computed, onMounted } = Vue;
+
+  createApp({
+    setup() {
+      // Current Screen View: 'pos' | 'orders' | 'inventory' | 'manager' | 'users'
+      const currentView = ref('pos');
+
+      // Branches (Req 18)
+      const branches = ref([
+        { id: 1, name: 'สาขาสยามพารากอน', location: 'Siam Paragon ชั้น G' },
+        { id: 2, name: 'สาขาอารีย์', location: 'Ari Soi 1' },
+        { id: 3, name: 'สาขาเซ็นทรัลเวิลด์', location: 'CentralWorld ชั้น 3' },
+      ]);
+      const currentBranchId = ref(1);
+      const currentBranch = computed(() => branches.value.find(b => b.id === currentBranchId.value));
+
+      // ==========================================================
+      // 1. ระบบจัดการบัญชี (ACCOUNT MANAGEMENT) & AUTHENTICATION
+      // 1.1 เพิ่มบัญชีผู้ใช้, 1.2 ลบบัญชีผู้ใช้, 1.3 แก้ไขข้อมูลผู้ใช้
+      // ==========================================================
+      const users = ref([
+        { id: 1, username: 'mint@staff', name: 'น้องมินท์ พิชญา', role: 'Staff (พนักงานแคชเชียร์)', roleType: 'staff', branchId: 1, branchName: 'สาขาสยามพารากอน', phone: '089-111-2233', status: 'Active' },
+        { id: 2, username: 'golf@staff', name: 'นายกอล์ฟ ภานุพงศ์', role: 'Staff (พนักงานแคชเชียร์)', roleType: 'staff', branchId: 2, branchName: 'สาขาอารีย์', phone: '082-333-4455', status: 'Active' },
+        { id: 3, username: 'somchai@manager', name: 'คุณสมชาย บริหารดี', role: 'Manager (ผู้จัดการร้าน)', roleType: 'manager', branchId: 1, branchName: 'สาขาสยามพารากอน', phone: '081-999-8877', status: 'Active' },
+        { id: 4, username: 'fay@staff', name: 'น้องเฟย์ ชนิกานต์', role: 'Staff (พนักงานแคชเชียร์)', roleType: 'staff', branchId: 3, branchName: 'สาขาเซ็นทรัลเวิลด์', phone: '084-555-6677', status: 'Active' },
+      ]);
+
+      // Authentication State & RBAC
+      const isLoggedIn = ref(false);
+      const activeUser = ref(null);
+      const loginUsername = ref('');
+      const loginPassword = ref('');
+      const loginError = ref('');
+
+      const isManager = computed(() => {
+        return activeUser.value && activeUser.value.roleType === 'manager';
+      });
+
+      const handleLogin = () => {
+        loginError.value = '';
+        const raw = loginUsername.value.trim().toLowerCase();
+        if (!raw) {
+          loginError.value = 'กรุณากรอกชื่อผู้ใช้';
+          return;
+        }
+
+        // 1. Match from registered users
+        let found = users.value.find(u => u.username.toLowerCase() === raw);
+
+        // 2. If not found in seed, check if format ends with @manager or @staff
+        if (!found) {
+          if (raw.endsWith('@manager')) {
+            found = {
+              id: Date.now(),
+              username: raw,
+              name: raw.split('@')[0],
+              role: 'Manager (ผู้จัดการร้าน)',
+              roleType: 'manager',
+              branchId: 1,
+              branchName: 'สาขาสยามพารากอน',
+              phone: '081-000-0000',
+              status: 'Active',
+            };
+            users.value.push(found);
+          } else if (raw.endsWith('@staff')) {
+            found = {
+              id: Date.now(),
+              username: raw,
+              name: raw.split('@')[0],
+              role: 'Staff (พนักงานแคชเชียร์)',
+              roleType: 'staff',
+              branchId: 1,
+              branchName: 'สาขาสยามพารากอน',
+              phone: '089-000-0000',
+              status: 'Active',
+            };
+            users.value.push(found);
+          } else {
+            loginError.value = 'ชื่อผู้ใช้ต้องลงท้ายด้วย @staff หรือ @manager เท่านั้น (เช่น somchai@manager หรือ mint@staff)';
+            return;
+          }
+        }
+
+        activeUser.value = found;
+        currentBranchId.value = found.branchId;
+        isLoggedIn.value = true;
+        currentView.value = 'pos';
+        loginUsername.value = '';
+        loginPassword.value = '';
+      };
+
+      const quickLogin = (uname) => {
+        loginUsername.value = uname;
+        loginPassword.value = '1234';
+        handleLogin();
+      };
+
+      const logout = () => {
+        isLoggedIn.value = false;
+        activeUser.value = null;
+        currentView.value = 'pos';
+      };
+
+      const switchActiveUser = (user) => {
+        activeUser.value = user;
+        currentBranchId.value = user.branchId;
+        alert(`👤 สลับผู้ใช้งานปัจจุบันเป็น: ${user.name} (${user.role})\nสังกัด: ${user.branchName}`);
+      };
+
+      // Modals & form state for User Management
+      const showAddUserModal = ref(false);
+      const showEditUserModal = ref(false);
+      const userForm = ref({
+        id: null,
+        username: '',
+        password: '',
+        name: '',
+        phone: '',
+        roleType: 'staff',
+        branchId: 1,
+        status: 'Active',
+      });
+
+      // 1.1 เพิ่มบัญชีผู้ใช้
+      const openAddUserModal = () => {
+        userForm.value = {
+          id: null,
+          username: '',
+          password: '',
+          name: '',
+          phone: '',
+          roleType: 'staff',
+          branchId: currentBranchId.value,
+          status: 'Active',
+        };
+        showAddUserModal.value = true;
+      };
+
+      const saveNewUser = () => {
+        if (!userForm.value.username || !userForm.value.name || !userForm.value.phone) {
+          alert('กรุณากรอกข้อมูลชื่อผู้ใช้, ชื่อ-นามสกุล และเบอร์โทรศัพท์ให้ครบถ้วน');
+          return;
+        }
+
+        let uname = userForm.value.username.trim().toLowerCase();
+        if (!uname.includes('@')) {
+          uname = `${uname}@${userForm.value.roleType}`;
+        }
+
+        const b = branches.value.find(br => br.id === userForm.value.branchId);
+        const newUser = {
+          id: Date.now(),
+          username: uname,
+          name: userForm.value.name.trim(),
+          phone: userForm.value.phone.trim(),
+          roleType: userForm.value.roleType,
+          role: userForm.value.roleType === 'manager' ? 'Manager (ผู้จัดการร้าน)' : 'Staff (พนักงานแคชเชียร์)',
+          branchId: userForm.value.branchId,
+          branchName: b ? b.name : 'สาขาสยามพารากอน',
+          status: 'Active',
+        };
+
+        users.value.push(newUser);
+        showAddUserModal.value = false;
+        alert(`✅ [1.1 เพิ่มบัญชีสำเร็จ] บัญชี ${newUser.username} (${newUser.name}) ถูกบันทึกเรียบร้อยแล้ว!`);
+      };
+
+      // 1.2 ลบบัญชีผู้ใช้
+      const deleteUser = (user) => {
+        if (users.value.length <= 1) {
+          alert('ไม่สามารถลบบัญชีผู้ใช้สุดท้ายในระบบได้');
+          return;
+        }
+        if (confirm(`⚠️ [1.2 ยืนยันการลบบัญชี]\nคุณแน่ใจว่าต้องการลบบัญชี @${user.username} (${user.name}) หรือไม่?`)) {
+          users.value = users.value.filter(u => u.id !== user.id);
+          if (activeUser.value && activeUser.value.id === user.id) {
+            activeUser.value = users.value[0];
+          }
+          alert(`🗑️ ลบบัญชี @${user.username} ออกจากระบบเรียบร้อยแล้ว`);
+        }
+      };
+
+      // 1.3 แก้ไขข้อมูลผู้ใช้
+      const openEditUserModal = (user) => {
+        userForm.value = {
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          phone: user.phone,
+          roleType: user.roleType,
+          branchId: user.branchId,
+          status: user.status,
+        };
+        showEditUserModal.value = true;
+      };
+
+      const saveEditUser = () => {
+        const target = users.value.find(u => u.id === userForm.value.id);
+        if (target) {
+          const b = branches.value.find(br => br.id === userForm.value.branchId);
+          target.name = userForm.value.name.trim();
+          target.phone = userForm.value.phone.trim();
+          target.roleType = userForm.value.roleType;
+          target.role = userForm.value.roleType === 'manager' ? 'Manager (ผู้จัดการร้าน)' : 'Staff (พนักงานแคชเชียร์)';
+          target.branchId = userForm.value.branchId;
+          target.branchName = b ? b.name : target.branchName;
+          target.status = userForm.value.status;
+
+          if (activeUser.value && activeUser.value.id === target.id) {
+            activeUser.value = target;
+          }
+
+          showEditUserModal.value = false;
+          alert(`✅ [1.3 บันทึกการแก้ไขสำเร็จ] อัปเดตข้อมูลผู้ใช้ @${target.username} เรียบร้อยแล้ว!`);
+        }
+      };
+
+      // Product Categories
+      const categories = ref([
+        { id: 'all', name: 'ทั้งหมด', icon: '🍨' },
+        { id: 'classic', name: 'เจลาโต้คลาสสิก', icon: '🌰' },
+        { id: 'sorbet', name: 'ซอร์เบท์ผลไม้', icon: '🍓' },
+        { id: 'special', name: 'พรีเมียมสเปเชียล', icon: '✨' },
+      ]);
+      const selectedCategory = ref('all');
+
+      // Products Catalog (Req 3, 4) - Mapped by flavorCode
+      const products = ref([
+        { id: 1, name: 'Bronte Pistachio', category: 'classic', price: 99, desc: 'พิสตาชิโอเข้มข้นนำเข้าจากซิซิลี อิตาลี', icon: '🟢', flavorCode: 'ING-PIS', lowThreshold: 5 },
+        { id: 2, name: 'Dark Chocolate 72%', category: 'classic', price: 89, desc: 'ช็อกโกแลตแท้เข้มข้น กลมกล่อม ไม่หวานเลี่ยน', icon: '🟤', flavorCode: 'ING-CHO', lowThreshold: 5 },
+        { id: 3, name: 'Madagascar Vanilla', category: 'classic', price: 79, desc: 'วานิลลาแท้จากมาดากัสการ์ หอมนุ่มละมุน', icon: '⚪', flavorCode: 'ING-VAN', lowThreshold: 5 },
+        { id: 4, name: 'Strawberry Sorbet', category: 'sorbet', price: 89, desc: 'สตรอว์เบอร์รีสดแท้ 100% สดชื่น ปราศจากนม', icon: '🔴', flavorCode: 'ING-STR', lowThreshold: 4 },
+        { id: 5, name: 'Yuzu Passionfruit', category: 'sorbet', price: 99, desc: 'ส้มยูซุและเสาวรส รสชาติเปรี้ยวอมหวาน', icon: '🟡', flavorCode: 'ING-YUZ', lowThreshold: 4 },
+        { id: 6, name: 'Uji Matcha Premium', category: 'special', price: 99, desc: 'มัทฉะเกรดพิธีชงชาจากเมืองอุจิ เกียวโต', icon: '🍵', flavorCode: 'ING-MAT', lowThreshold: 5 },
+        { id: 7, name: 'Sea Salt Caramel', category: 'special', price: 89, desc: 'คาราเมลเคี่ยวสดตัดเกลือสมุทร หวานมันเค็ม', icon: '🍯', flavorCode: 'ING-CAR', lowThreshold: 5 },
+        { id: 8, name: 'Wild Berry Yogurt', category: 'sorbet', price: 89, desc: 'โยเกิร์ตแท้ผสานเบอร์รีรวม เปรี้ยวสดชื่น', icon: '🟣', flavorCode: 'ING-BER', lowThreshold: 5 },
+      ]);
+
+      const filteredProducts = computed(() => {
+        if (selectedCategory.value === 'all') return products.value;
+        return products.value.filter(p => p.category === selectedCategory.value);
+      });
+
+      // Add Product / Menu State
+      const showAddProductModal = ref(false);
+      const newProductName = ref('');
+      const newProductCategory = ref('classic');
+      const newProductPrice = ref(99);
+      const newProductDesc = ref('');
+      const newProductIcon = ref('🍨');
+      const newProductInitialStock = ref(25);
+      const newProductThreshold = ref(5);
+
+      const addProduct = () => {
+        if (!newProductName.value || !newProductPrice.value) {
+          alert('กรุณากรอกชื่อเมนูและราคาให้ครบถ้วน');
+          return;
+        }
+        const newFlavorId = Date.now();
+        const cleanName = newProductName.value.trim();
+        const newFlavorCode = `ING-${cleanName.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-3)}`;
+        const newProd = {
+          id: newFlavorId,
+          name: cleanName,
+          category: newProductCategory.value,
+          price: Number(newProductPrice.value),
+          desc: newProductDesc.value.trim() || 'เจลาโต้พรีเมียมสูตรพิเศษ',
+          icon: newProductIcon.value || '🍨',
+          flavorCode: newFlavorCode,
+          lowThreshold: Number(newProductThreshold.value) || 5,
+        };
+
+        // 1. Add to products list
+        products.value.push(newProd);
+
+        // 2. Add raw ingredient to inventory for all branches
+        branches.value.forEach(branch => {
+          inventory.value.push({
+            id: Date.now() + Math.floor(Math.random() * 1000) + branch.id,
+            branchId: branch.id,
+            code: newFlavorCode,
+            name: `เจลาโต้ รส ${newProd.name}`,
+            category: 'เจลาโต้',
+            quantity: Number(newProductInitialStock.value) || 20,
+            unit: 'สกู๊ป',
+            minThreshold: Number(newProductThreshold.value) || 5,
+          });
+        });
+
+        // Reset Form
+        showAddProductModal.value = false;
+        newProductName.value = '';
+        newProductPrice.value = 99;
+        newProductDesc.value = '';
+        newProductIcon.value = '🍨';
+        newProductInitialStock.value = 25;
+
+        alert(`🎉 เพิ่มเมนู [${newProd.name}] สำเร็จแล้ว!\nพร้อมขายบนหน้าจอ POS และบันทึกคลังสต็อกให้ครบทุกสาขาเรียบร้อยครับ`);
+      };
+
+      // Edit Product / Menu State
+      const showEditProductModal = ref(false);
+      const editProductForm = ref({
+        id: null,
+        name: '',
+        category: 'classic',
+        price: 99,
+        desc: '',
+        icon: '🍨',
+        flavorCode: '',
+        lowThreshold: 5,
+      });
+
+      const openEditProductModal = (product) => {
+        editProductForm.value = {
+          id: product.id,
+          name: product.name,
+          category: product.category,
+          price: product.price,
+          desc: product.desc,
+          icon: product.icon,
+          flavorCode: product.flavorCode,
+          lowThreshold: product.lowThreshold || 5,
+        };
+        showEditProductModal.value = true;
+      };
+
+      const saveEditProduct = () => {
+        if (!editProductForm.value.name.trim() || !editProductForm.value.price) {
+          alert('กรุณากรอกชื่อเมนูและราคาให้ครบถ้วน');
+          return;
+        }
+        const prod = products.value.find(p => p.id === editProductForm.value.id);
+        if (prod) {
+          prod.name = editProductForm.value.name.trim();
+          prod.category = editProductForm.value.category;
+          prod.price = Number(editProductForm.value.price);
+          prod.desc = editProductForm.value.desc.trim();
+          prod.icon = editProductForm.value.icon;
+          prod.lowThreshold = Number(editProductForm.value.lowThreshold) || 5;
+
+          // Keep inventory item name and threshold in sync across all branches
+          if (prod.flavorCode) {
+            inventory.value.forEach(inv => {
+              if (inv.code === prod.flavorCode) {
+                inv.name = `เจลาโต้ รส ${prod.name}`;
+                inv.minThreshold = prod.lowThreshold;
+              }
+            });
+          }
+
+          showEditProductModal.value = false;
+          alert(`✅ แก้ไขข้อมูลเมนู [${prod.name}] สำเร็จเรียบร้อยแล้ว!`);
+        }
+      };
+
+      // Inventory Data (Req 10, 11, 13, 14) - Full Inventory for ALL branches
+      const inventory = ref([
+        // ================= สาขา 1: สยามพารากอน =================
+        { id: 1, branchId: 1, code: 'ING-PIS', name: 'เจลาโต้ รส Pistachio', category: 'เจลาโต้', quantity: 6, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 2, branchId: 1, code: 'ING-CHO', name: 'เจลาโต้ รส Dark Choco', category: 'เจลาโต้', quantity: 24, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 3, branchId: 1, code: 'ING-VAN', name: 'เจลาโต้ รส Vanilla', category: 'เจลาโต้', quantity: 18, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 4, branchId: 1, code: 'ING-STR', name: 'เจลาโต้ รส Strawberry', category: 'เจลาโต้', quantity: 3, unit: 'สกู๊ป', minThreshold: 5 }, // Low stock
+        { id: 5, branchId: 1, code: 'ING-YUZ', name: 'เจลาโต้ รส Yuzu', category: 'เจลาโต้', quantity: 12, unit: 'สกู๊ป', minThreshold: 4 },
+        { id: 6, branchId: 1, code: 'ING-MAT', name: 'เจลาโต้ รส Matcha', category: 'เจลาโต้', quantity: 15, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 7, branchId: 1, code: 'ING-CAR', name: 'เจลาโต้ รส Caramel', category: 'เจลาโต้', quantity: 10, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 8, branchId: 1, code: 'ING-BER', name: 'เจลาโต้ รส Berry Yogurt', category: 'เจลาโต้', quantity: 8, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 9, branchId: 1, code: 'PKG-CUP', name: 'ถ้วยกระดาษเจลาโต้', category: 'ภาชนะ', quantity: 85, unit: 'ใบ', minThreshold: 20 },
+        { id: 10, branchId: 1, code: 'PKG-CON', name: 'โคนวาฟเฟิลเนยสด', category: 'ภาชนะ', quantity: 4, unit: 'อัน', minThreshold: 10 }, // Low stock
+        { id: 11, branchId: 1, code: 'TOP-ALM', name: 'อัลมอนด์อบกรอบ', category: 'ท็อปปิ้ง', quantity: 40, unit: 'ที่', minThreshold: 10 },
+        { id: 12, branchId: 1, code: 'TOP-BRO', name: 'ฟัดจ์บราวนี่หนึบ', category: 'ท็อปปิ้ง', quantity: 25, unit: 'ที่', minThreshold: 10 },
+
+        // ================= สาขา 2: อารีย์ =================
+        { id: 101, branchId: 2, code: 'ING-PIS', name: 'เจลาโต้ รส Pistachio', category: 'เจลาโต้', quantity: 16, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 102, branchId: 2, code: 'ING-CHO', name: 'เจลาโต้ รส Dark Choco', category: 'เจลาโต้', quantity: 20, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 103, branchId: 2, code: 'ING-VAN', name: 'เจลาโต้ รส Vanilla', category: 'เจลาโต้', quantity: 15, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 104, branchId: 2, code: 'ING-STR', name: 'เจลาโต้ รส Strawberry', category: 'เจลาโต้', quantity: 12, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 105, branchId: 2, code: 'ING-YUZ', name: 'เจลาโต้ รส Yuzu', category: 'เจลาโต้', quantity: 3, unit: 'สกู๊ป', minThreshold: 4 }, // Low stock in Ari!
+        { id: 106, branchId: 2, code: 'ING-MAT', name: 'เจลาโต้ รส Matcha', category: 'เจลาโต้', quantity: 18, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 107, branchId: 2, code: 'ING-CAR', name: 'เจลาโต้ รส Caramel', category: 'เจลาโต้', quantity: 8, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 108, branchId: 2, code: 'ING-BER', name: 'เจลาโต้ รส Berry Yogurt', category: 'เจลาโต้', quantity: 14, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 109, branchId: 2, code: 'PKG-CUP', name: 'ถ้วยกระดาษเจลาโต้', category: 'ภาชนะ', quantity: 70, unit: 'ใบ', minThreshold: 20 },
+        { id: 110, branchId: 2, code: 'PKG-CON', name: 'โคนวาฟเฟิลเนยสด', category: 'ภาชนะ', quantity: 22, unit: 'อัน', minThreshold: 10 },
+        { id: 111, branchId: 2, code: 'TOP-ALM', name: 'อัลมอนด์อบกรอบ', category: 'ท็อปปิ้ง', quantity: 35, unit: 'ที่', minThreshold: 10 },
+        { id: 112, branchId: 2, code: 'TOP-BRO', name: 'ฟัดจ์บราวนี่หนึบ', category: 'ท็อปปิ้ง', quantity: 18, unit: 'ที่', minThreshold: 10 },
+
+        // ================= สาขา 3: เซ็นทรัลเวิลด์ =================
+        { id: 201, branchId: 3, code: 'ING-PIS', name: 'เจลาโต้ รส Pistachio', category: 'เจลาโต้', quantity: 22, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 202, branchId: 3, code: 'ING-CHO', name: 'เจลาโต้ รส Dark Choco', category: 'เจลาโต้', quantity: 18, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 203, branchId: 3, code: 'ING-VAN', name: 'เจลาโต้ รส Vanilla', category: 'เจลาโต้', quantity: 14, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 204, branchId: 3, code: 'ING-STR', name: 'เจลาโต้ รส Strawberry', category: 'เจลาโต้', quantity: 16, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 205, branchId: 3, code: 'ING-YUZ', name: 'เจลาโต้ รส Yuzu', category: 'เจลาโต้', quantity: 10, unit: 'สกู๊ป', minThreshold: 4 },
+        { id: 206, branchId: 3, code: 'ING-MAT', name: 'เจลาโต้ รส Matcha', category: 'เจลาโต้', quantity: 4, unit: 'สกู๊ป', minThreshold: 5 }, // Low stock in CentralWorld!
+        { id: 207, branchId: 3, code: 'ING-CAR', name: 'เจลาโต้ รส Caramel', category: 'เจลาโต้', quantity: 12, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 208, branchId: 3, code: 'ING-BER', name: 'เจลาโต้ รส Berry Yogurt', category: 'เจลาโต้', quantity: 9, unit: 'สกู๊ป', minThreshold: 5 },
+        { id: 209, branchId: 3, code: 'PKG-CUP', name: 'ถ้วยกระดาษเจลาโต้', category: 'ภาชนะ', quantity: 95, unit: 'ใบ', minThreshold: 20 },
+        { id: 210, branchId: 3, code: 'PKG-CON', name: 'โคนวาฟเฟิลเนยสด', category: 'ภาชนะ', quantity: 30, unit: 'อัน', minThreshold: 10 },
+        { id: 211, branchId: 3, code: 'TOP-ALM', name: 'อัลมอนด์อบกรอบ', category: 'ท็อปปิ้ง', quantity: 45, unit: 'ที่', minThreshold: 10 },
+        { id: 212, branchId: 3, code: 'TOP-BRO', name: 'ฟัดจ์บราวนี่หนึบ', category: 'ท็อปปิ้ง', quantity: 22, unit: 'ที่', minThreshold: 10 },
+      ]);
+
+      const branchInventory = computed(() => {
+        return inventory.value.filter(i => i.branchId === currentBranchId.value);
+      });
+
+      const lowStockItems = computed(() => {
+        return branchInventory.value.filter(i => i.quantity <= i.minThreshold);
+      });
+
+      const getStock = (flavorCode) => {
+        const item = branchInventory.value.find(i => i.code === flavorCode);
+        return item ? item.quantity : 0;
+      };
+
+      // Customization Options
+      const containers = ref([
+        { name: 'ถ้วยกระดาษ (Paper Cup)', price: 0, code: 'PKG-CUP' },
+        { name: 'โคนวาฟเฟิล (Waffle Cone)', price: 20, code: 'PKG-CON' },
+      ]);
+      const availableToppings = ref([
+        { name: 'อัลมอนด์สไลซ์', price: 15, code: 'TOP-ALM' },
+        { name: 'บราวนี่ไบท์', price: 20, code: 'TOP-BRO' },
+        { name: 'ซอสช็อกโกแลตฟัดจ์', price: 15, code: 'TOP-FUD' },
+      ]);
+
+      // Customization Modal State
+      const showCustomModal = ref(false);
+      const currentCustomItem = ref({});
+      const selectedContainer = ref(containers.value[0]);
+      const selectedToppings = ref([]);
+
+      const customItemCalculatedPrice = computed(() => {
+        let sum = currentCustomItem.value.price || 0;
+        sum += selectedContainer.value.price || 0;
+        selectedToppings.value.forEach(t => sum += t.price);
+        return sum;
+      });
+
+      const openCustomizationModal = (item) => {
+        currentCustomItem.value = item;
+        selectedContainer.value = containers.value[0];
+        selectedToppings.value = [];
+        showCustomModal.value = true;
+      };
+
+      const toggleTopping = (topping) => {
+        const idx = selectedToppings.value.findIndex(t => t.name === topping.name);
+        if (idx > -1) {
+          selectedToppings.value.splice(idx, 1);
+        } else {
+          selectedToppings.value.push(topping);
+        }
+      };
+
+      // Cart State (Req 6)
+      const cart = ref([]);
+
+      const confirmAddToCart = () => {
+        cart.value.push({
+          productId: currentCustomItem.value.id,
+          productName: currentCustomItem.value.name,
+          basePrice: currentCustomItem.value.price,
+          servingType: selectedContainer.value.name,
+          containerCode: selectedContainer.value.code,
+          toppings: selectedToppings.value.map(t => t.name),
+          unitPrice: customItemCalculatedPrice.value,
+          qty: 1,
+          totalPrice: customItemCalculatedPrice.value,
+          flavorCode: currentCustomItem.value.flavorCode,
+        });
+        showCustomModal.value = false;
+      };
+
+      const increaseCartQty = (idx) => {
+        cart.value[idx].qty++;
+        cart.value[idx].totalPrice = cart.value[idx].qty * cart.value[idx].unitPrice;
+      };
+
+      const decreaseCartQty = (idx) => {
+        if (cart.value[idx].qty > 1) {
+          cart.value[idx].qty--;
+          cart.value[idx].totalPrice = cart.value[idx].qty * cart.value[idx].unitPrice;
+        } else {
+          cart.value.splice(idx, 1);
+        }
+      };
+
+      const removeCartItem = (idx) => {
+        cart.value.splice(idx, 1);
+      };
+
+      const clearCart = () => {
+        if (confirm('คุณต้องการยกเลิกและล้างบิลนี้ใช่หรือไม่?')) {
+          cart.value = [];
+          currentCustomer.value = null;
+          selectedPromoId.value = null;
+        }
+      };
+
+      // Delete Product from Menu (POS View)
+      const deleteProduct = (item) => {
+        if (confirm(`คุณต้องการลบเมนู "${item.name}" ออกจากการขายใช่หรือไม่?`)) {
+          products.value = products.value.filter(p => p.id !== item.id);
+          alert(`🗑️ ลบเมนู "${item.name}" สำเร็จเรียบร้อยแล้ว`);
+        }
+      };
+
+      // Membership State (Req 1)
+      const customers = ref([
+        { id: 1, name: 'คุณสมชาย ใจดี', phone: '0812345678' },
+        { id: 2, name: 'คุณวิภาดา สดใส', phone: '0898765432' },
+      ]);
+      const currentCustomer = ref(null);
+      const memberPhoneSearch = ref('');
+      const showMemberModal = ref(false);
+      const newMemberName = ref('');
+      const newMemberPhone = ref('');
+
+      const searchMember = () => {
+        const found = customers.value.find(c => c.phone === memberPhoneSearch.value.trim());
+        if (found) {
+          currentCustomer.value = found;
+          memberPhoneSearch.value = '';
+        } else {
+          if (confirm(`ไม่พบเบอร์ ${memberPhoneSearch.value} ในระบบ ต้องการสมัครสมาชิกใหม่เลยหรือไม่?`)) {
+            newMemberPhone.value = memberPhoneSearch.value;
+            showMemberModal.value = true;
+          }
+        }
+      };
+
+      const registerMember = () => {
+        if (!newMemberName.value || !newMemberPhone.value) {
+          alert('กรุณากรอกชื่อและเบอร์โทรศัพท์ให้ครบถ้วน');
+          return;
+        }
+        const newCust = {
+          id: Date.now(),
+          name: newMemberName.value.trim(),
+          phone: newMemberPhone.value.trim(),
+        };
+        customers.value.push(newCust);
+        currentCustomer.value = newCust;
+        showMemberModal.value = false;
+        newMemberName.value = '';
+        newMemberPhone.value = '';
+        alert(`🎉 สมัครสมาชิก ${newCust.name} สำเร็จ! ได้รับส่วนลด 10% สำหรับบิลนี้ทันที`);
+      };
+
+      // Promotions State (Req 15, 16)
+      const promotions = ref([
+        { id: 1, code: 'GELATOLOVE', name: 'ส่วนลดประจำวัน 20 บาท', type: 'amount', value: 20, discountText: '-฿20' },
+        { id: 2, code: 'SUMMERFEST', name: 'โปรคลายร้อน ลด 10%', type: 'percent', value: 10, discountText: 'ลด 10%' },
+      ]);
+      const showAddPromoModal = ref(false);
+      const newPromoName = ref('');
+      const newPromoCode = ref('');
+      const newPromoType = ref('amount');
+      const newPromoValue = ref(20);
+
+      const createPromotion = () => {
+        if (!newPromoName.value || !newPromoCode.value || !newPromoValue.value) {
+          alert('กรุณากรอกข้อมูลให้ครบ');
+          return;
+        }
+        promotions.value.push({
+          id: Date.now(),
+          code: newPromoCode.value.toUpperCase(),
+          name: newPromoName.value,
+          type: newPromoType.value,
+          value: newPromoValue.value,
+          discountText: newPromoType.value === 'amount' ? `-฿${newPromoValue.value}` : `ลด ${newPromoValue.value}%`,
+        });
+        showAddPromoModal.value = false;
+        newPromoName.value = '';
+        newPromoCode.value = '';
+        alert('บันทึกเพิ่มโปรโมชั่นสำเร็จ! (Req 15)');
+      };
+
+      const deletePromotion = (id) => {
+        if (confirm('คุณแน่ใจว่าต้องการลบโปรโมชั่นนี้ใช่หรือไม่?')) {
+          promotions.value = promotions.value.filter(p => p.id !== id);
+          alert('ลบโปรโมชั่นเรียบร้อยแล้ว (Req 16)');
+        }
+      };
+
+      // Calculation Engines (Req 7)
+      const cartSubtotal = computed(() => {
+        return cart.value.reduce((sum, it) => sum + it.totalPrice, 0);
+      });
+
+      // Dynamic Promotion Selection & Calculation (Req 7, 15)
+      const selectedPromoId = ref(null);
+      const selectedPromo = computed(() => {
+        if (!selectedPromoId.value) return null;
+        return promotions.value.find(p => p.id === selectedPromoId.value) || null;
+      });
+
+      const appliedPromoName = computed(() => {
+        return selectedPromo.value ? selectedPromo.value.code : '';
+      });
+
+      const activePromotionDiscount = computed(() => {
+        if (cartSubtotal.value === 0 || !selectedPromo.value) return 0;
+        const promo = selectedPromo.value;
+        if (promo.type === 'amount') {
+          return Math.min(Number(promo.value), cartSubtotal.value);
+        } else if (promo.type === 'percent') {
+          return Math.round(cartSubtotal.value * (Number(promo.value) / 100));
+        }
+        return 0;
+      });
+
+      const memberDiscount = computed(() => {
+        if (!currentCustomer.value || cartSubtotal.value === 0) return 0;
+        const remaining = cartSubtotal.value - activePromotionDiscount.value;
+        return Math.round(remaining * 0.10);
+      });
+
+      const cartNetTotal = computed(() => {
+        const net = cartSubtotal.value - activePromotionDiscount.value - memberDiscount.value;
+        return Math.max(0, net);
+      });
+
+      // Payment & Modals (Req 8, 9, 12 & Credit Card)
+      const showCashModal = ref(false);
+      const showDigitalModal = ref(false);
+      const showCreditCardModal = ref(false);
+      const creditCardNumber = ref('4111 •••• •••• 4242');
+      const creditCardHolder = ref('CUSTOMER NAME');
+      const creditCardType = ref('VISA');
+      const showReceiptModal = ref(false);
+      const cashReceived = ref(0);
+      const currentReceiptOrder = ref(null);
+
+      const cashChange = computed(() => {
+        return (cashReceived.value || 0) - cartNetTotal.value;
+      });
+
+      const openCashPaymentModal = () => {
+        cashReceived.value = cartNetTotal.value;
+        showCashModal.value = true;
+      };
+
+      const openDigitalPaymentModal = () => {
+        showDigitalModal.value = true;
+      };
+
+      const openCreditCardModal = () => {
+        showCreditCardModal.value = true;
+      };
+
+      // Orders State (Req 5, 12, 17)
+      const orders = ref([
+        {
+          id: 1001,
+          orderNumber: 'ORD-20261107-001',
+          branchId: 1,
+          branchName: 'สาขาสยามพารากอน',
+          time: '14:20 น.',
+          customerName: 'คุณสมชาย ใจดี',
+          customerPhone: '0812345678',
+          staffName: 'น้องมินท์ พิชญา',
+          itemsSummary: '1x Bronte Pistachio (โคนวาฟเฟิล)',
+          items: [
+            { qty: 1, productName: 'Bronte Pistachio', servingType: 'โคนวาฟเฟิล (Waffle Cone)', containerCode: 'PKG-CON', flavorCode: 'ING-PIS', totalPrice: 119 }
+          ],
+          subtotal: 119,
+          discount: 12,
+          netTotal: 107,
+          paymentMethod: 'Cash',
+          cashReceived: 500,
+          cashChange: 393,
+          status: 'Completed'
+        }
+      ]);
+
+      // Complete Payment & Inventory Deduction (Req 11, 12, 14)
+      const completePayment = (method) => {
+        const newOrder = {
+          id: Date.now(),
+          orderNumber: `ORD-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.floor(100 + Math.random() * 900)}`,
+          branchId: currentBranchId.value,
+          branchName: currentBranch.value.name,
+          time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.',
+          customerName: currentCustomer.value ? currentCustomer.value.name : null,
+          customerPhone: currentCustomer.value ? currentCustomer.value.phone : null,
+          staffName: activeUser.value ? activeUser.value.name : 'น้องมินท์',
+          itemsSummary: cart.value.map(i => `${i.qty}x ${i.productName}`).join(', '),
+          items: JSON.parse(JSON.stringify(cart.value)),
+          subtotal: cartSubtotal.value,
+          discount: activePromotionDiscount.value + memberDiscount.value,
+          netTotal: cartNetTotal.value,
+          paymentMethod: method,
+          cashReceived: method === 'Cash' ? cashReceived.value : cartNetTotal.value,
+          cashChange: method === 'Cash' ? cashChange.value : 0,
+          status: 'Completed',
+        };
+
+        // 1. Save order
+        orders.value.unshift(newOrder);
+
+        // 2. Reduce Stock automatically in current branch (Req 11)
+        cart.value.forEach(cartItem => {
+          // Reduce flavor
+          const flavor = branchInventory.value.find(i => i.code === cartItem.flavorCode);
+          if (flavor && flavor.quantity > 0) {
+            flavor.quantity = Math.max(0, flavor.quantity - cartItem.qty);
+          }
+          // Reduce container (Cone or Cup)
+          const pkg = branchInventory.value.find(i => i.code === cartItem.containerCode);
+          if (pkg && pkg.quantity > 0) {
+            pkg.quantity = Math.max(0, pkg.quantity - cartItem.qty);
+          }
+        });
+
+        // 3. Reset POS Cart
+        cart.value = [];
+        currentCustomer.value = null;
+        selectedPromoId.value = null;
+        showCashModal.value = false;
+        showDigitalModal.value = false;
+        showCreditCardModal.value = false;
+
+        // 4. Open Receipt view (Req 12)
+        currentReceiptOrder.value = newOrder;
+        showReceiptModal.value = true;
+
+        // 5. Trigger Low Stock Alert Pop-up if any item hit threshold (Req 14)
+        setTimeout(() => {
+          if (lowStockItems.value.length > 0) {
+            showLowStockModal.value = true;
+          }
+        }, 800);
+      };
+
+      const viewOrderReceipt = (order) => {
+        currentReceiptOrder.value = order;
+        showReceiptModal.value = true;
+      };
+
+      const printReceipt = () => {
+        window.print();
+      };
+
+      // Cancel Order (Req 2)
+      const cancelOrder = (order) => {
+        if (confirm(`คุณต้องการยกเลิกคำสั่งซื้อเลขที่ ${order.orderNumber} หรือไม่?\nระบบจะทำการคืนสต็อกสินค้าให้โดยอัตโนมัติ`)) {
+          order.status = 'Cancelled';
+          
+          // Rollback stock in the branch
+          order.items.forEach(item => {
+            const flavor = branchInventory.value.find(i => i.code === item.flavorCode);
+            if (flavor) flavor.quantity += item.qty;
+            const pkg = branchInventory.value.find(i => i.code === item.containerCode);
+            if (pkg) pkg.quantity += item.qty;
+          });
+
+          alert(`ยกเลิกคำสั่งซื้อ ${order.orderNumber} สำเร็จและคืนสต็อกเรียบร้อยแล้ว (Req 2)`);
+        }
+      };
+
+      // Inventory Restock (Req 10)
+      const showLowStockModal = ref(false);
+      const showAddStockModal = ref(false);
+      const selectedStockId = ref(1);
+      const addStockAmount = ref(20);
+
+      const openLowStockAlertModal = () => {
+        showLowStockModal.value = true;
+      };
+
+      const quickRestock = (item) => {
+        const qty = prompt(`เพิ่มจำนวนสต็อกสำหรับ [${item.name}] ปัจจุบันเหลือ ${item.quantity} ${item.unit}:`, '20');
+        if (qty && !isNaN(qty) && Number(qty) > 0) {
+          item.quantity += Number(qty);
+          alert(`✅ เพิ่มสต็อก ${item.name} สำเร็จ! ปัจจุบันคงเหลือ ${item.quantity} ${item.unit}`);
+        }
+      };
+
+      const decreaseStock = (item) => {
+        const qtyStr = prompt(`ระบุจำนวนที่ต้องการตัดลด/ของเสีย สำหรับ [${item.name}] (คงเหลือปัจจุบัน: ${item.quantity} ${item.unit}):`, '5');
+        if (qtyStr !== null && qtyStr.trim() !== '') {
+          const qty = Number(qtyStr);
+          if (isNaN(qty) || qty <= 0) {
+            alert('⚠️ กรุณาระบุตัวเลขจำนวนที่ถูกต้องและมากกว่า 0');
+            return;
+          }
+          if (qty > item.quantity) {
+            alert(`⚠️ จำนวนที่ต้องการลด (${qty}) มากกว่าจำนวนคงเหลือในคลัง (${item.quantity})`);
+            return;
+          }
+          item.quantity -= qty;
+          alert(`📉 ปรับลดสต็อก ${item.name} เรียบร้อยแล้ว! คงเหลือปัจจุบัน: ${item.quantity} ${item.unit}`);
+          
+          if (item.quantity <= item.minThreshold) {
+            setTimeout(() => {
+              showLowStockModal.value = true;
+            }, 300);
+          }
+        }
+      };
+
+      const deleteStockItem = (item) => {
+        if (confirm(`คุณต้องการลบวัตถุดิบ [${item.name}] (รหัส: ${item.code}) ออกจากคลังสต๊อกใช่หรือไม่?`)) {
+          inventory.value = inventory.value.filter(i => i.id !== item.id);
+          alert(`🗑️ ลบวัตถุดิบ [${item.name}] ออกจากคลังสต๊อกเรียบร้อยแล้ว`);
+        }
+      };
+
+      const confirmAddStock = () => {
+        const item = branchInventory.value.find(i => i.id === selectedStockId.value);
+        if (item && addStockAmount.value > 0) {
+          item.quantity += Number(addStockAmount.value);
+          alert(`✅ บันทึกเพิ่มสต็อก ${item.name} +${addStockAmount.value} ${item.unit} เรียบร้อยแล้ว (Req 10)`);
+          showAddStockModal.value = false;
+        }
+      };
+
+      // Manager Dashboard Metrics (Req 18, 19, 20)
+      const onBranchChange = () => {
+        // Automatically switch branch
+      };
+
+      const todayTotalSales = computed(() => {
+        return orders.value
+          .filter(o => o.status === 'Completed')
+          .reduce((sum, o) => sum + o.netTotal, 0);
+      });
+
+      const currentBranchSales = computed(() => {
+        return orders.value
+          .filter(o => o.status === 'Completed' && o.branchId === currentBranchId.value)
+          .reduce((sum, o) => sum + o.netTotal, 0);
+      });
+
+      const currentBranchOrderCount = computed(() => {
+        return orders.value.filter(o => o.branchId === currentBranchId.value).length;
+      });
+
+      const currentBranchAvgOrder = computed(() => {
+        if (currentBranchOrderCount.value === 0) return 0;
+        return Math.round(currentBranchSales.value / currentBranchOrderCount.value);
+      });
+
+      const todayNewMembers = ref(2);
+
+      const cashRatio = computed(() => {
+        const completed = orders.value.filter(o => o.status === 'Completed');
+        if (completed.length === 0) return 0;
+        const cashOrders = completed.filter(o => o.paymentMethod === 'Cash').length;
+        return Math.round((cashOrders / completed.length) * 100);
+      });
+
+      const cardRatio = computed(() => {
+        const completed = orders.value.filter(o => o.status === 'Completed');
+        if (completed.length === 0) return 0;
+        const cardOrders = completed.filter(o => o.paymentMethod === 'CreditCard').length;
+        return Math.round((cardOrders / completed.length) * 100);
+      });
+
+      const digitalRatio = computed(() => {
+        const completed = orders.value.filter(o => o.status === 'Completed');
+        if (completed.length === 0) return 0;
+        const digOrders = completed.filter(o => o.paymentMethod === 'Digital').length;
+        return Math.round((digOrders / completed.length) * 100);
+      });
+
+      const getBranchSales = (branchId) => {
+        return orders.value
+          .filter(o => o.branchId === branchId && o.status === 'Completed')
+          .reduce((sum, o) => sum + o.netTotal, 0);
+      };
+
+      const getBranchOrders = (branchId) => {
+        return orders.value.filter(o => o.branchId === branchId).length;
+      };
+
+      const printSalesReport = () => {
+        alert(`📊 จัดทำรายงานยอดขายสรุปสำหรับ [${currentBranch.value.name}]\n` +
+              `-----------------------------------------\n` +
+              `• ยอดขายรวม: ฿${currentBranchSales.value}\n` +
+              `• จำนวนคำสั่งซื้อ: ${currentBranchOrderCount.value} บิล\n` +
+              `• สัดส่วนเงินสด: ${cashRatio.value}%\n` +
+              `• สัดส่วนดิจิทัล QR: ${digitalRatio.value}%\n` +
+              `• สัดส่วนบัตรเครดิต: ${cardRatio.value}%\n` +
+              `• สมาชิกรวม: ${customers.value.length} คน\n` +
+              `-----------------------------------------\n` +
+              `พร้อมสำหรับการพิมพ์หรือส่งออกผู้บริหารเรียบร้อยครับ (Req 19)`);
+      };
+
+      return {
+        isLoggedIn,
+        isManager,
+        loginUsername,
+        loginPassword,
+        loginError,
+        handleLogin,
+        quickLogin,
+        logout,
+        currentView,
+        branches,
+        currentBranchId,
+        currentBranch,
+        onBranchChange,
+        users,
+        activeUser,
+        switchActiveUser,
+        showAddUserModal,
+        showEditUserModal,
+        userForm,
+        openAddUserModal,
+        saveNewUser,
+        deleteUser,
+        openEditUserModal,
+        saveEditUser,
+        categories,
+        selectedCategory,
+        products,
+        filteredProducts,
+        inventory,
+        branchInventory,
+        lowStockItems,
+        getStock,
+        containers,
+        availableToppings,
+        showCustomModal,
+        currentCustomItem,
+        selectedContainer,
+        selectedToppings,
+        customItemCalculatedPrice,
+        openCustomizationModal,
+        toggleTopping,
+        cart,
+        confirmAddToCart,
+        increaseCartQty,
+        decreaseCartQty,
+        removeCartItem,
+        clearCart,
+        customers,
+        currentCustomer,
+        memberPhoneSearch,
+        showMemberModal,
+        newMemberName,
+        newMemberPhone,
+        searchMember,
+        registerMember,
+        promotions,
+        showAddPromoModal,
+        newPromoName,
+        newPromoCode,
+        newPromoType,
+        newPromoValue,
+        createPromotion,
+        deletePromotion,
+        showAddProductModal,
+        newProductName,
+        newProductCategory,
+        newProductPrice,
+        newProductDesc,
+        newProductIcon,
+        newProductInitialStock,
+        newProductThreshold,
+        addProduct,
+        deleteProduct,
+        showEditProductModal,
+        editProductForm,
+        openEditProductModal,
+        saveEditProduct,
+        cartSubtotal,
+        selectedPromoId,
+        selectedPromo,
+        appliedPromoName,
+        activePromotionDiscount,
+        memberDiscount,
+        cartNetTotal,
+        showCashModal,
+        showDigitalModal,
+        showCreditCardModal,
+        creditCardNumber,
+        creditCardHolder,
+        creditCardType,
+        showReceiptModal,
+        cashReceived,
+        cashChange,
+        currentReceiptOrder,
+        openCashPaymentModal,
+        openDigitalPaymentModal,
+        openCreditCardModal,
+        orders,
+        completePayment,
+        viewOrderReceipt,
+        printReceipt,
+        cancelOrder,
+        showLowStockModal,
+        showAddStockModal,
+        selectedStockId,
+        addStockAmount,
+        openLowStockAlertModal,
+        quickRestock,
+        decreaseStock,
+        deleteStockItem,
+        confirmAddStock,
+        todayTotalSales,
+        currentBranchSales,
+        currentBranchOrderCount,
+        currentBranchAvgOrder,
+        todayNewMembers,
+        cashRatio,
+        digitalRatio,
+        cardRatio,
+        getBranchSales,
+        getBranchOrders,
+        printSalesReport,
+      };
+    }
+  }).mount('#app');
+</script>
+
+</body>
+</html>
